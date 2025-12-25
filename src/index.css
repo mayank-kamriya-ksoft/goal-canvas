@@ -171,9 +171,55 @@
   }
 
   .prose-custom {
-    @apply prose prose-lg max-w-none prose-headings:font-display prose-headings:text-foreground 
-           prose-p:text-muted-foreground prose-a:text-primary prose-a:no-underline hover:prose-a:underline
-           prose-strong:text-foreground prose-li:text-muted-foreground;
+    @apply max-w-none;
+  }
+
+  .prose-custom h1,
+  .prose-custom h2,
+  .prose-custom h3,
+  .prose-custom h4 {
+    @apply font-display text-foreground mt-8 mb-4 first:mt-0;
+  }
+
+  .prose-custom h1 {
+    @apply text-3xl sm:text-4xl font-bold;
+  }
+
+  .prose-custom h2 {
+    @apply text-2xl sm:text-3xl font-bold;
+  }
+
+  .prose-custom h3 {
+    @apply text-xl sm:text-2xl font-semibold;
+  }
+
+  .prose-custom p {
+    @apply text-muted-foreground text-lg leading-relaxed mb-4;
+  }
+
+  .prose-custom a {
+    @apply text-primary no-underline hover:underline;
+  }
+
+  .prose-custom strong {
+    @apply text-foreground font-semibold;
+  }
+
+  .prose-custom ul,
+  .prose-custom ol {
+    @apply my-4 ml-6;
+  }
+
+  .prose-custom li {
+    @apply text-muted-foreground text-lg mb-2;
+  }
+
+  .prose-custom ul li {
+    @apply list-disc;
+  }
+
+  .prose-custom ol li {
+    @apply list-decimal;
   }
 }
 
