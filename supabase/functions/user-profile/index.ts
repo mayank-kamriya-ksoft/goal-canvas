@@ -1,0 +1,164 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get('EXTERNAL_SUPABASE_URL') || Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('EXTERNAL_SUPABASE_SERVICE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const { action, token, ...data } = await req.json();
+
+    if (!token) {
+      return new Response(
+        JSON.stringify({ error: 'Token is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate session
+    const { data: session, error: sessionError } = await supabase
+      .from('sessions')
+      .select('user_id, expires_at')
+      .eq('token', token)
+      .maybeSingle();
+
+    if (sessionError || !session) {
+      console.error('Session validation failed:', sessionError);
+      return new Response(
+        JSON.stringify({ error: 'Invalid session' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (new Date(session.expires_at) < new Date()) {
+      return new Response(
+        JSON.stringify({ error: 'Session expired' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const userId = session.user_id;
+
+    switch (action) {
+      case 'get': {
+        // Get user profile
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (profileError) {
+          console.error('Error fetching profile:', profileError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to fetch profile' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Get user email
+        const { data: user, error: userError } = await supabase
+          .from('users')
+          .select('email, created_at')
+          .eq('id', userId)
+          .single();
+
+        if (userError) {
+          console.error('Error fetching user:', userError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to fetch user' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log('Profile fetched for user:', userId);
+
+        return new Response(
+          JSON.stringify({
+            profile: profile || { user_id: userId },
+            user: { email: user.email, created_at: user.created_at }
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'update': {
+        const { display_name, bio, theme_preference, email_notifications } = data;
+
+        // Check if profile exists
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        let result;
+        if (existingProfile) {
+          // Update existing profile
+          result = await supabase
+            .from('profiles')
+            .update({
+              display_name: display_name?.trim() || null,
+              bio: bio?.trim() || null,
+              theme_preference: theme_preference || 'system',
+              email_notifications: email_notifications ?? true,
+            })
+            .eq('user_id', userId)
+            .select()
+            .single();
+        } else {
+          // Create new profile
+          result = await supabase
+            .from('profiles')
+            .insert({
+              user_id: userId,
+              display_name: display_name?.trim() || null,
+              bio: bio?.trim() || null,
+              theme_preference: theme_preference || 'system',
+              email_notifications: email_notifications ?? true,
+            })
+            .select()
+            .single();
+        }
+
+        if (result.error) {
+          console.error('Error updating profile:', result.error);
+          return new Response(
+            JSON.stringify({ error: 'Failed to update profile' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log('Profile updated for user:', userId);
+
+        return new Response(
+          JSON.stringify({ profile: result.data }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      default:
+        return new Response(
+          JSON.stringify({ error: 'Invalid action' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+    }
+  } catch (error) {
+    console.error('Profile error:', error);
+    return new Response(
+      JSON.stringify({ error: 'Internal server error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
