@@ -95,7 +95,7 @@ serve(async (req) => {
       }
 
       case 'update': {
-        const { display_name, bio, theme_preference, email_notifications } = data;
+        const { display_name, bio, avatar_url, theme_preference, email_notifications } = data;
 
         // Check if profile exists
         const { data: existingProfile } = await supabase
@@ -105,16 +105,20 @@ serve(async (req) => {
           .maybeSingle();
 
         let result;
+        const updateData: Record<string, any> = {};
+        
+        // Only include fields that are explicitly provided
+        if (display_name !== undefined) updateData.display_name = display_name?.trim() || null;
+        if (bio !== undefined) updateData.bio = bio?.trim() || null;
+        if (avatar_url !== undefined) updateData.avatar_url = avatar_url || null;
+        if (theme_preference !== undefined) updateData.theme_preference = theme_preference || 'system';
+        if (email_notifications !== undefined) updateData.email_notifications = email_notifications ?? true;
+
         if (existingProfile) {
           // Update existing profile
           result = await supabase
             .from('profiles')
-            .update({
-              display_name: display_name?.trim() || null,
-              bio: bio?.trim() || null,
-              theme_preference: theme_preference || 'system',
-              email_notifications: email_notifications ?? true,
-            })
+            .update(updateData)
             .eq('user_id', userId)
             .select()
             .single();
@@ -124,10 +128,7 @@ serve(async (req) => {
             .from('profiles')
             .insert({
               user_id: userId,
-              display_name: display_name?.trim() || null,
-              bio: bio?.trim() || null,
-              theme_preference: theme_preference || 'system',
-              email_notifications: email_notifications ?? true,
+              ...updateData,
             })
             .select()
             .single();

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { SEO } from "@/components/seo/SEO";
@@ -17,6 +17,8 @@ import {
   Key,
   Eye,
   EyeOff,
+  Camera,
+  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -39,6 +41,7 @@ interface Profile {
   user_id: string;
   display_name: string | null;
   bio: string | null;
+  avatar_url: string | null;
   theme_preference: string;
   email_notifications: boolean;
 }
@@ -51,16 +54,19 @@ interface UserInfo {
 export default function Settings() {
   const { user, session, isLoading: authLoading, logout } = useAuth();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   // Form state
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [themePreference, setThemePreference] = useState("system");
   const [emailNotifications, setEmailNotifications] = useState(true);
 
@@ -102,6 +108,7 @@ export default function Settings() {
         setUserInfo(data.user);
         setDisplayName(data.profile?.display_name || "");
         setBio(data.profile?.bio || "");
+        setAvatarUrl(data.profile?.avatar_url || null);
         setThemePreference(data.profile?.theme_preference || "system");
         setEmailNotifications(data.profile?.email_notifications ?? true);
       } catch (err) {
@@ -116,6 +123,83 @@ export default function Settings() {
       fetchProfile();
     }
   }, [session, logout, navigate]);
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image must be less than 2MB");
+      return;
+    }
+
+    if (!user?.id) {
+      toast.error("Please log in to upload an avatar");
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      // Generate unique filename
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+        throw uploadError;
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+
+      const newAvatarUrl = urlData.publicUrl;
+      setAvatarUrl(newAvatarUrl);
+
+      // Update profile with new avatar URL
+      if (session?.token) {
+        const { error: updateError } = await supabase.functions.invoke("user-profile", {
+          body: {
+            action: "update",
+            token: session.token,
+            avatar_url: newAvatarUrl,
+          },
+        });
+
+        if (updateError) {
+          throw updateError;
+        }
+      }
+
+      toast.success("Avatar uploaded successfully");
+    } catch (err) {
+      console.error("Failed to upload avatar:", err);
+      toast.error("Failed to upload avatar");
+    } finally {
+      setIsUploadingAvatar(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -137,6 +221,7 @@ export default function Settings() {
           token: session.token,
           display_name: displayName,
           bio,
+          avatar_url: avatarUrl,
           theme_preference: themePreference,
           email_notifications: emailNotifications,
         },
@@ -265,7 +350,67 @@ export default function Settings() {
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-6">
+                {/* Avatar */}
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-3">
+                    Profile Picture
+                  </label>
+                  <div className="flex items-center gap-6">
+                    <div className="relative">
+                      <div className="h-24 w-24 rounded-full overflow-hidden bg-muted border-2 border-border">
+                        {avatarUrl ? (
+                          <img
+                            src={avatarUrl}
+                            alt="Profile"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center bg-primary/10">
+                            <User className="h-10 w-10 text-primary" />
+                          </div>
+                        )}
+                      </div>
+                      {isUploadingAvatar && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-full">
+                          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarUpload}
+                        className="hidden"
+                        id="avatar-upload"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploadingAvatar}
+                      >
+                        {isUploadingAvatar ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4" />
+                            Upload Photo
+                          </>
+                        )}
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        JPG, PNG or GIF. Max 2MB.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Display Name */}
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-2">
