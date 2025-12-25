@@ -37,7 +37,7 @@ serve(async (req) => {
     if (sessionError || !session) {
       return new Response(
         JSON.stringify({ valid: false, error: 'Invalid session' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -47,7 +47,7 @@ serve(async (req) => {
       await supabase.from('sessions').delete().eq('id', session.id);
       return new Response(
         JSON.stringify({ valid: false, error: 'Session expired' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -61,7 +61,7 @@ serve(async (req) => {
     if (userError || !user) {
       return new Response(
         JSON.stringify({ valid: false, error: 'User not found' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
