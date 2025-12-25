@@ -42,13 +42,13 @@ export function DashboardLayout({
     <div className="min-h-screen flex flex-col">
       <Header />
       <SidebarProvider defaultOpen={true}>
-        <div className="flex flex-1 w-full">
+        <div className="flex flex-1 w-full overflow-hidden">
           <DashboardSidebar
             selectedCategory={selectedCategory}
             onCategoryChange={onCategoryChange}
           />
-          <SidebarInset className="flex flex-col flex-1">
-            <main className="flex-1">{children}</main>
+          <SidebarInset className="flex flex-col flex-1 min-w-0 overflow-auto">
+            <main className="flex-1 min-w-0">{children}</main>
             {!hideFooter && <Footer />}
           </SidebarInset>
         </div>
