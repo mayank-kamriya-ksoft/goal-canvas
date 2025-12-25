@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Layout } from "@/components/layout/Layout";
+import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { SEO } from "@/components/seo/SEO";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -49,6 +49,7 @@ export default function MyBoards() {
   const [boards, setBoards] = useState<VisionBoard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -128,19 +129,31 @@ export default function MyBoards() {
     });
   };
 
+  // Filter boards by category
+  const filteredBoards = useMemo(() => {
+    if (!selectedCategory) return boards;
+    return boards.filter((board) => board.category === selectedCategory);
+  }, [boards, selectedCategory]);
+
   if (authLoading || isLoading) {
     return (
-      <Layout>
+      <DashboardLayout
+        selectedCategory={selectedCategory}
+        onCategoryChange={setSelectedCategory}
+      >
         <SEO title="My Vision Boards" description="View and manage your saved vision boards." />
         <div className="min-h-[60vh] flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      </Layout>
+      </DashboardLayout>
     );
   }
 
   return (
-    <Layout>
+    <DashboardLayout
+      selectedCategory={selectedCategory}
+      onCategoryChange={setSelectedCategory}
+    >
       <SEO
         title="My Vision Boards"
         description="View and manage your saved vision boards. Edit, download, or create new boards."
@@ -155,10 +168,18 @@ export default function MyBoards() {
                 My Vision Boards
               </h1>
               <p className="text-muted-foreground mt-1">
-                {boards.length} board{boards.length !== 1 ? "s" : ""} saved
+                {selectedCategory ? (
+                  <>
+                    {filteredBoards.length} {selectedCategory} board{filteredBoards.length !== 1 ? "s" : ""}
+                  </>
+                ) : (
+                  <>
+                    {boards.length} board{boards.length !== 1 ? "s" : ""} saved
+                  </>
+                )}
               </p>
             </div>
-            <Link to="/create">
+            <Link to="/create" className="hidden sm:block">
               <Button variant="hero" size="lg">
                 <Plus className="h-5 w-5" />
                 Create New Board
@@ -167,27 +188,29 @@ export default function MyBoards() {
           </div>
 
           {/* Boards Grid */}
-          {boards.length === 0 ? (
+          {filteredBoards.length === 0 ? (
             <div className="card-elevated p-12 text-center">
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-secondary flex items-center justify-center">
                 <FolderOpen className="h-8 w-8 text-muted-foreground" />
               </div>
               <h2 className="text-xl font-display font-semibold text-foreground mb-2">
-                No boards yet
+                {selectedCategory ? `No ${selectedCategory} boards` : "No boards yet"}
               </h2>
               <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                Start creating your first vision board to visualize your goals and dreams.
+                {selectedCategory
+                  ? `You don't have any ${selectedCategory} boards. Create one to get started!`
+                  : "Start creating your first vision board to visualize your goals and dreams."}
               </p>
               <Link to="/create">
                 <Button variant="hero" size="lg">
                   <Plus className="h-5 w-5" />
-                  Create Your First Board
+                  Create {selectedCategory ? `${selectedCategory} ` : "Your First "}Board
                 </Button>
               </Link>
             </div>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {boards.map((board) => {
+              {filteredBoards.map((board) => {
                 const IconComponent = categoryIcons[board.category] || Star;
                 const colorClass = categoryColors[board.category] || "bg-category-personal";
 
@@ -251,6 +274,6 @@ export default function MyBoards() {
           )}
         </div>
       </section>
-    </Layout>
+    </DashboardLayout>
   );
 }
