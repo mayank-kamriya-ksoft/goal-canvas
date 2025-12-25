@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Canvas as FabricCanvas, Rect, Textbox, FabricImage } from "fabric";
+import { Canvas as FabricCanvas, Rect, Textbox, FabricImage, Shadow } from "fabric";
 import { Button } from "@/components/ui/button";
 import {
   Type,
@@ -69,6 +69,18 @@ export function VisionCanvas({ onExport, template }: VisionCanvasProps) {
     };
   }, []);
 
+  // Category color mapping
+  const getCategoryColors = (category: string) => {
+    const colors: Record<string, { primary: string; light: string; accent: string }> = {
+      career: { primary: "#4A7C9B", light: "#E8F4F8", accent: "#2D5A4A" },
+      education: { primary: "#7B5AA6", light: "#F3EDF8", accent: "#5A3D7A" },
+      health: { primary: "#4A9B6D", light: "#E8F5F0", accent: "#2D5A4A" },
+      finance: { primary: "#C4A442", light: "#FBF8E8", accent: "#8B7A30" },
+      personal: { primary: "#9B5A7C", light: "#F8E8F0", accent: "#7A3D5A" },
+    };
+    return colors[category] || colors.career;
+  };
+
   // Load template when canvas is ready and template changes
   useEffect(() => {
     if (!canvas || !template || templateLoadedRef.current === template.id) return;
@@ -80,62 +92,238 @@ export function VisionCanvas({ onExport, template }: VisionCanvasProps) {
     canvas.clear();
     canvas.backgroundColor = "#FAFAF8";
     
-    // Add title
-    const title = new Textbox(template.title, {
-      left: CANVAS_WIDTH / 2 - 200,
-      top: 40,
-      width: 400,
-      fontSize: 32,
+    const colors = getCategoryColors(template.category);
+    
+    // Header banner
+    const headerBanner = new Rect({
+      left: 0,
+      top: 0,
+      width: CANVAS_WIDTH,
+      height: 140,
+      fill: colors.primary,
+      selectable: false,
+    });
+    canvas.add(headerBanner);
+    
+    // Decorative circle on header
+    const decorCircle1 = new Rect({
+      left: CANVAS_WIDTH - 180,
+      top: -40,
+      width: 200,
+      height: 200,
+      fill: "rgba(255,255,255,0.1)",
+      rx: 100,
+      ry: 100,
+      selectable: false,
+    });
+    canvas.add(decorCircle1);
+    
+    const decorCircle2 = new Rect({
+      left: -60,
+      top: 60,
+      width: 120,
+      height: 120,
+      fill: "rgba(255,255,255,0.08)",
+      rx: 60,
+      ry: 60,
+      selectable: false,
+    });
+    canvas.add(decorCircle2);
+    
+    // Title on banner
+    const title = new Textbox(template.title.toUpperCase(), {
+      left: 60,
+      top: 45,
+      width: CANVAS_WIDTH - 120,
+      fontSize: 36,
       fontFamily: "DM Sans, sans-serif",
       fontWeight: "bold",
-      fill: "#2D5A4A",
-      textAlign: "center",
+      fill: "#FFFFFF",
+      textAlign: "left",
       editable: true,
+      charSpacing: 80,
     });
     canvas.add(title);
     
-    // Add goals as text boxes in a grid
-    const startY = 120;
-    const goalWidth = 250;
-    const goalHeight = 100;
-    const gap = 20;
+    // Subtitle
+    const subtitle = new Textbox("My Vision for Success", {
+      left: 60,
+      top: 90,
+      width: 400,
+      fontSize: 16,
+      fontFamily: "DM Sans, sans-serif",
+      fill: "rgba(255,255,255,0.8)",
+      textAlign: "left",
+      editable: true,
+    });
+    canvas.add(subtitle);
+    
+    // Goals section title
+    const goalsSectionTitle = new Textbox("✨ MY GOALS", {
+      left: 60,
+      top: 170,
+      width: 200,
+      fontSize: 14,
+      fontFamily: "DM Sans, sans-serif",
+      fontWeight: "bold",
+      fill: colors.accent,
+      textAlign: "left",
+      charSpacing: 100,
+    });
+    canvas.add(goalsSectionTitle);
+    
+    // Decorative line
+    const decorLine = new Rect({
+      left: 60,
+      top: 195,
+      width: 60,
+      height: 3,
+      fill: colors.primary,
+      rx: 2,
+      ry: 2,
+      selectable: false,
+    });
+    canvas.add(decorLine);
+    
+    // Goals grid - 2x2 layout with cards
+    const startY = 220;
+    const goalWidth = 520;
+    const goalHeight = 120;
+    const gap = 24;
     const cols = 2;
+    const startX = 60;
     
     template.goals.forEach((goal, index) => {
       const col = index % cols;
       const row = Math.floor(index / cols);
-      const x = (CANVAS_WIDTH / 2 - goalWidth - gap / 2) + col * (goalWidth + gap);
+      const x = startX + col * (goalWidth + gap);
       const y = startY + row * (goalHeight + gap);
       
-      // Background rect
-      const rect = new Rect({
+      // Goal card background
+      const cardBg = new Rect({
         left: x,
         top: y,
         width: goalWidth,
         height: goalHeight,
-        fill: "#E8F5F0",
-        rx: 12,
-        ry: 12,
+        fill: "#FFFFFF",
+        rx: 16,
+        ry: 16,
+        shadow: new Shadow({ color: "rgba(0,0,0,0.08)", blur: 12, offsetX: 0, offsetY: 4 }),
+        stroke: colors.light,
+        strokeWidth: 2,
         selectable: true,
       });
-      canvas.add(rect);
+      canvas.add(cardBg);
+      
+      // Accent bar on left
+      const accentBar = new Rect({
+        left: x,
+        top: y,
+        width: 6,
+        height: goalHeight,
+        fill: colors.primary,
+        rx: 3,
+        ry: 3,
+        selectable: false,
+      });
+      canvas.add(accentBar);
+      
+      // Goal number badge
+      const numberBadge = new Rect({
+        left: x + 24,
+        top: y + 20,
+        width: 36,
+        height: 36,
+        fill: colors.light,
+        rx: 18,
+        ry: 18,
+        selectable: false,
+      });
+      canvas.add(numberBadge);
+      
+      const numberText = new Textbox(`${index + 1}`, {
+        left: x + 24,
+        top: y + 28,
+        width: 36,
+        fontSize: 16,
+        fontFamily: "DM Sans, sans-serif",
+        fontWeight: "bold",
+        fill: colors.primary,
+        textAlign: "center",
+        selectable: false,
+      });
+      canvas.add(numberText);
       
       // Goal text
       const goalText = new Textbox(goal, {
-        left: x + 15,
-        top: y + (goalHeight / 2) - 12,
-        width: goalWidth - 30,
-        fontSize: 18,
+        left: x + 76,
+        top: y + 30,
+        width: goalWidth - 100,
+        fontSize: 20,
         fontFamily: "DM Sans, sans-serif",
-        fill: "#2D5A4A",
-        textAlign: "center",
+        fontWeight: "600",
+        fill: "#1a1a1a",
+        textAlign: "left",
         editable: true,
       });
       canvas.add(goalText);
+      
+      // "Add details" hint
+      const hintText = new Textbox("Click to add details...", {
+        left: x + 76,
+        top: y + 70,
+        width: goalWidth - 100,
+        fontSize: 14,
+        fontFamily: "DM Sans, sans-serif",
+        fill: "#888888",
+        textAlign: "left",
+        editable: true,
+      });
+      canvas.add(hintText);
     });
     
+    // Footer motivational quote area
+    const quoteArea = new Rect({
+      left: 60,
+      top: CANVAS_HEIGHT - 120,
+      width: CANVAS_WIDTH - 120,
+      height: 80,
+      fill: colors.light,
+      rx: 12,
+      ry: 12,
+      selectable: true,
+    });
+    canvas.add(quoteArea);
+    
+    const quoteText = new Textbox('"The future belongs to those who believe in the beauty of their dreams." — Eleanor Roosevelt', {
+      left: 90,
+      top: CANVAS_HEIGHT - 95,
+      width: CANVAS_WIDTH - 180,
+      fontSize: 16,
+      fontFamily: "DM Sans, sans-serif",
+      fontStyle: "italic",
+      fill: colors.accent,
+      textAlign: "center",
+      editable: true,
+    });
+    canvas.add(quoteText);
+    
+    // Decorative bottom corner elements
+    const cornerDecor = new Rect({
+      left: CANVAS_WIDTH - 100,
+      top: CANVAS_HEIGHT - 100,
+      width: 80,
+      height: 80,
+      fill: colors.primary,
+      rx: 40,
+      ry: 40,
+      opacity: 0.1,
+      selectable: false,
+    });
+    canvas.add(cornerDecor);
+    
     canvas.renderAll();
-    toast.success(`Template "${template.title}" loaded!`);
+    toast.success(`Template "${template.title}" loaded! ✨`);
   }, [canvas, template]);
 
   // Handle container resize
