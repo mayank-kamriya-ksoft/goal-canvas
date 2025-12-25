@@ -183,6 +183,10 @@ export function VisionCanvas({ onExport, template, boardId, initialCategory = "p
           console.log("Loading canvas JSON:", data.board.board_data);
           try {
             await canvas.loadFromJSON(data.board.board_data);
+            // Restore background color if saved
+            if (data.board.board_data.background) {
+              canvas.backgroundColor = data.board.board_data.background;
+            }
             canvas.renderAll();
             toast.success("Board loaded!");
           } catch (loadErr) {
@@ -1109,7 +1113,9 @@ export function VisionCanvas({ onExport, template, boardId, initialCategory = "p
 
     setIsSaving(true);
     try {
+      // Include backgroundColor in the saved data
       const canvasData = canvas.toJSON();
+      canvasData.background = canvas.backgroundColor;
       const category = template?.category || initialCategory;
 
       if (currentBoardId) {
