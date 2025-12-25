@@ -762,7 +762,7 @@ export function VisionCanvas({ onExport, template }: VisionCanvasProps) {
 
     const updateZoom = () => {
       const container = containerRef.current;
-      if (!container) return;
+      if (!container || !canvas.lowerCanvasEl) return;
 
       const containerWidth = container.clientWidth - 48;
       const containerHeight = container.clientHeight - 48;
@@ -779,9 +779,13 @@ export function VisionCanvas({ onExport, template }: VisionCanvasProps) {
       });
     };
 
-    updateZoom();
+    // Delay initial call to ensure canvas is fully initialized
+    const timer = setTimeout(updateZoom, 50);
     window.addEventListener("resize", updateZoom);
-    return () => window.removeEventListener("resize", updateZoom);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", updateZoom);
+    };
   }, [canvas]);
 
   const addText = useCallback(() => {
