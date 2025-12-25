@@ -12,6 +12,12 @@ import {
   RotateCcw,
   Move,
   Palette,
+  Bold,
+  Italic,
+  Plus,
+  Minus,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -48,6 +54,8 @@ export function VisionCanvas({ onExport, template }: VisionCanvasProps) {
   const [canvas, setCanvas] = useState<FabricCanvas | null>(null);
   const [zoom, setZoom] = useState(1);
   const [activeColor, setActiveColor] = useState("#2D5A4A");
+  const [hasSelection, setHasSelection] = useState(false);
+  const [showAllColors, setShowAllColors] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const templateLoadedRef = useRef<number | null>(null);
 
@@ -61,6 +69,11 @@ export function VisionCanvas({ onExport, template }: VisionCanvasProps) {
       backgroundColor: "#FAFAF8",
       selection: true,
     });
+
+    // Track selection changes
+    fabricCanvas.on("selection:created", () => setHasSelection(true));
+    fabricCanvas.on("selection:updated", () => setHasSelection(true));
+    fabricCanvas.on("selection:cleared", () => setHasSelection(false));
 
     setCanvas(fabricCanvas);
 
@@ -394,6 +407,101 @@ export function VisionCanvas({ onExport, template }: VisionCanvasProps) {
     toast.success("Shape added!");
   }, [canvas, activeColor]);
 
+  // Apply color to selected objects
+  const applyColorToSelection = useCallback((color: string) => {
+    if (!canvas) return;
+    
+    const activeObjects = canvas.getActiveObjects();
+    if (activeObjects.length === 0) {
+      setActiveColor(color);
+      return;
+    }
+    
+    activeObjects.forEach((obj) => {
+      if (obj.type === "textbox" || obj.type === "text" || obj.type === "i-text") {
+        obj.set("fill", color);
+      } else {
+        obj.set("fill", color);
+      }
+    });
+    
+    canvas.renderAll();
+    setActiveColor(color);
+    toast.success("Color applied!");
+  }, [canvas]);
+
+  // Change font size of selected text
+  const changeFontSize = useCallback((delta: number) => {
+    if (!canvas) return;
+    
+    const activeObjects = canvas.getActiveObjects();
+    let changed = false;
+    
+    activeObjects.forEach((obj) => {
+      if (obj.type === "textbox" || obj.type === "text" || obj.type === "i-text") {
+        const currentSize = (obj as Textbox).fontSize || 24;
+        const newSize = Math.max(8, Math.min(120, currentSize + delta));
+        (obj as Textbox).set("fontSize", newSize);
+        changed = true;
+      }
+    });
+    
+    if (changed) {
+      canvas.renderAll();
+      toast.success("Font size updated!");
+    } else {
+      toast.error("Select text to change size");
+    }
+  }, [canvas]);
+
+  // Toggle bold on selected text
+  const toggleBold = useCallback(() => {
+    if (!canvas) return;
+    
+    const activeObjects = canvas.getActiveObjects();
+    let changed = false;
+    
+    activeObjects.forEach((obj) => {
+      if (obj.type === "textbox" || obj.type === "text" || obj.type === "i-text") {
+        const textObj = obj as Textbox;
+        const currentWeight = textObj.fontWeight;
+        textObj.set("fontWeight", currentWeight === "bold" ? "normal" : "bold");
+        changed = true;
+      }
+    });
+    
+    if (changed) {
+      canvas.renderAll();
+      toast.success("Text style updated!");
+    } else {
+      toast.error("Select text to toggle bold");
+    }
+  }, [canvas]);
+
+  // Toggle italic on selected text
+  const toggleItalic = useCallback(() => {
+    if (!canvas) return;
+    
+    const activeObjects = canvas.getActiveObjects();
+    let changed = false;
+    
+    activeObjects.forEach((obj) => {
+      if (obj.type === "textbox" || obj.type === "text" || obj.type === "i-text") {
+        const textObj = obj as Textbox;
+        const currentStyle = textObj.fontStyle;
+        textObj.set("fontStyle", currentStyle === "italic" ? "normal" : "italic");
+        changed = true;
+      }
+    });
+    
+    if (changed) {
+      canvas.renderAll();
+      toast.success("Text style updated!");
+    } else {
+      toast.error("Select text to toggle italic");
+    }
+  }, [canvas]);
+
   const handleImageUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       if (!canvas || !e.target.files?.[0]) return;
@@ -541,25 +649,62 @@ export function VisionCanvas({ onExport, template }: VisionCanvasProps) {
 
           <div className="h-6 w-px bg-border mx-1" />
 
+          {/* Text Formatting - Only show when selection exists */}
+          {hasSelection && (
+            <>
+              <Button variant="canvas" size="icon-sm" onClick={toggleBold} title="Bold">
+                <Bold className="h-4 w-4" />
+              </Button>
+              <Button variant="canvas" size="icon-sm" onClick={toggleItalic} title="Italic">
+                <Italic className="h-4 w-4" />
+              </Button>
+              <Button variant="canvas" size="icon-sm" onClick={() => changeFontSize(-2)} title="Decrease font size">
+                <Minus className="h-3 w-3" />
+              </Button>
+              <Button variant="canvas" size="icon-sm" onClick={() => changeFontSize(2)} title="Increase font size">
+                <Plus className="h-3 w-3" />
+              </Button>
+              <div className="h-6 w-px bg-border mx-1" />
+            </>
+          )}
+
           {/* Color Picker */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 relative">
             <Palette className="h-4 w-4 text-muted-foreground" />
-            <div className="flex gap-1">
-              {PRESET_COLORS.slice(0, 5).map((color) => (
+            <div className="flex gap-1 flex-wrap max-w-[180px]">
+              {(showAllColors ? PRESET_COLORS : PRESET_COLORS.slice(0, 5)).map((color) => (
                 <button
                   key={color}
-                  className={`w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 ${
+                  className={`w-6 h-6 rounded-full border-2 transition-all hover:scale-110 ${
                     activeColor === color
-                      ? "border-foreground scale-110"
+                      ? "border-foreground scale-110 ring-2 ring-primary/30"
                       : "border-border"
-                  }`}
+                  } ${color === "#FFFFFF" ? "border-muted-foreground/30" : ""}`}
                   style={{ backgroundColor: color }}
-                  onClick={() => setActiveColor(color)}
-                  aria-label={`Select color ${color}`}
+                  onClick={() => applyColorToSelection(color)}
+                  aria-label={`Apply color ${color}`}
+                  title={hasSelection ? "Apply to selection" : "Set active color"}
                 />
               ))}
             </div>
+            <button
+              onClick={() => setShowAllColors(!showAllColors)}
+              className="p-1 hover:bg-secondary rounded transition-colors"
+              title={showAllColors ? "Show less colors" : "Show all colors"}
+            >
+              {showAllColors ? (
+                <ChevronUp className="h-3 w-3 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="h-3 w-3 text-muted-foreground" />
+              )}
+            </button>
           </div>
+          
+          {hasSelection && (
+            <span className="text-xs text-primary font-medium px-2 py-1 bg-primary/10 rounded-full">
+              Selection active
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -580,11 +725,12 @@ export function VisionCanvas({ onExport, template }: VisionCanvasProps) {
             size="icon-sm"
             onClick={deleteSelected}
             className="text-destructive hover:text-destructive"
+            title="Delete selected"
           >
             <Trash2 className="h-4 w-4" />
           </Button>
 
-          <Button variant="canvas" size="icon-sm" onClick={resetCanvas}>
+          <Button variant="canvas" size="icon-sm" onClick={resetCanvas} title="Clear canvas">
             <RotateCcw className="h-4 w-4" />
           </Button>
 
@@ -611,8 +757,7 @@ export function VisionCanvas({ onExport, template }: VisionCanvasProps) {
       <div className="p-3 bg-surface border-t border-border">
         <p className="text-xs text-center text-muted-foreground">
           <Move className="inline h-3 w-3 mr-1" />
-          Drag to move • Double-click text to edit • Select and press Delete to
-          remove
+          Drag to move • Double-click text to edit • Select element + pick color to change • Delete key to remove
         </p>
       </div>
     </div>
