@@ -1,7 +1,8 @@
+import { useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { SEO } from "@/components/seo/SEO";
 import { VisionCanvas } from "@/components/canvas/VisionCanvas";
-import { Button } from "@/components/ui/button";
 import { Briefcase, GraduationCap, Heart, Wallet, Star, Info } from "lucide-react";
 
 const categories = [
@@ -12,7 +13,53 @@ const categories = [
   { id: "personal", label: "Personal", icon: Star, color: "bg-category-personal" },
 ];
 
+const templates = [
+  {
+    id: 1,
+    title: "Career Advancement Board",
+    category: "career",
+    goals: ["Promotion to Senior Manager", "Lead a team of 10+", "Complete MBA program", "Industry conference speaker"],
+  },
+  {
+    id: 2,
+    title: "Academic Success Board",
+    category: "education",
+    goals: ["Graduate with honors", "Research publication", "Scholarship recipient", "Study abroad semester"],
+  },
+  {
+    id: 3,
+    title: "Health & Wellness Board",
+    category: "health",
+    goals: ["Complete a marathon", "Daily meditation practice", "Balanced nutrition", "8 hours sleep routine"],
+  },
+  {
+    id: 4,
+    title: "Financial Freedom Board",
+    category: "finance",
+    goals: ["Emergency fund complete", "Investment portfolio", "Debt-free living", "Passive income streams"],
+  },
+  {
+    id: 5,
+    title: "Personal Growth Board",
+    category: "personal",
+    goals: ["Learn new language", "Read 24 books/year", "Volunteer monthly", "Master public speaking"],
+  },
+  {
+    id: 6,
+    title: "Balanced Life Board",
+    category: "personal",
+    goals: ["Work-life balance", "Quality family time", "Hobby development", "Travel experiences"],
+  },
+];
+
 export default function CreateBoard() {
+  const [searchParams] = useSearchParams();
+  const templateId = searchParams.get("template");
+  
+  const template = useMemo(() => {
+    if (!templateId) return null;
+    return templates.find(t => t.id === parseInt(templateId)) || null;
+  }, [templateId]);
   return (
     <Layout hideFooter>
       <SEO
@@ -47,7 +94,7 @@ export default function CreateBoard() {
 
         {/* Canvas Area */}
         <div className="flex-1 p-4 bg-canvas">
-          <VisionCanvas />
+          <VisionCanvas template={template} />
         </div>
       </div>
     </Layout>
