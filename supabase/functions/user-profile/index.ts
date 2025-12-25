@@ -53,22 +53,7 @@ serve(async (req) => {
 
     switch (action) {
       case 'get': {
-        // Get user profile
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', userId)
-          .maybeSingle();
-
-        if (profileError) {
-          console.error('Error fetching profile:', profileError);
-          return new Response(
-            JSON.stringify({ error: 'Failed to fetch profile' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Get user email
+        // Get user email first (this should always work)
         const { data: user, error: userError } = await supabase
           .from('users')
           .select('email, created_at')
@@ -83,7 +68,26 @@ serve(async (req) => {
           );
         }
 
-        console.log('Profile fetched for user:', userId);
+        // Try to get user profile (may not exist yet)
+        let profile = null;
+        try {
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', userId)
+            .maybeSingle();
+
+          if (profileError) {
+            console.warn('Error fetching profile (non-blocking):', profileError);
+            // Continue without profile data
+          } else {
+            profile = profileData;
+          }
+        } catch (err) {
+          console.warn('Profile fetch exception (non-blocking):', err);
+        }
+
+        console.log('Data fetched for user:', userId);
 
         return new Response(
           JSON.stringify({
