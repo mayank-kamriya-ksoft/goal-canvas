@@ -19,9 +19,21 @@ import {
   EyeOff,
   Upload,
   Trash2,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const profileSchema = z.object({
   display_name: z.string().max(100, "Display name must be less than 100 characters").optional(),
@@ -63,6 +75,10 @@ export default function Settings() {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isRemovingAvatar, setIsRemovingAvatar] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [showDeletePassword, setShowDeletePassword] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   // Form state
   const [displayName, setDisplayName] = useState("");
@@ -345,6 +361,47 @@ export default function Settings() {
       toast.error(err?.message || "Failed to change password");
     } finally {
       setIsChangingPassword(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!deletePassword) {
+      toast.error("Please enter your password to confirm deletion");
+      return;
+    }
+
+    if (!session?.token) return;
+
+    setIsDeletingAccount(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("user-profile", {
+        body: {
+          action: "delete-account",
+          token: session.token,
+          password: deletePassword,
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      // Clear local storage and redirect
+      localStorage.removeItem("session_token");
+      toast.success("Your account has been deleted");
+      navigate("/");
+    } catch (err: any) {
+      console.error("Failed to delete account:", err);
+      toast.error(err?.message || "Failed to delete account");
+    } finally {
+      setIsDeletingAccount(false);
+      setDeletePassword("");
+      setDeleteDialogOpen(false);
     }
   };
 
@@ -713,6 +770,94 @@ export default function Settings() {
                       }`}
                     />
                   </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Danger Zone */}
+            <div className="card-elevated p-6 border-destructive/20">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-foreground">Danger Zone</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Irreversible account actions
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-lg border border-destructive/30 bg-destructive/5">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                    <p className="font-medium text-foreground">Delete Account</p>
+                    <p className="text-sm text-muted-foreground">
+                      Permanently delete your account and all associated data. This action cannot be undone.
+                    </p>
+                  </div>
+                  <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="sm">
+                        <Trash2 className="h-4 w-4" />
+                        Delete Account
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2">
+                          <AlertTriangle className="h-5 w-5 text-destructive" />
+                          Delete Account
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This action is permanent and cannot be undone. All your data including vision boards, profile information, and settings will be permanently deleted.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <div className="py-4">
+                        <label className="block text-sm font-medium text-foreground mb-2">
+                          Enter your password to confirm
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showDeletePassword ? "text" : "password"}
+                            value={deletePassword}
+                            onChange={(e) => setDeletePassword(e.target.value)}
+                            placeholder="Enter your password"
+                            className="w-full px-4 py-3 pr-12 rounded-lg border border-input bg-background focus:ring-2 focus:ring-ring focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowDeletePassword(!showDeletePassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          >
+                            {showDeletePassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                          </button>
+                        </div>
+                      </div>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => {
+                          setDeletePassword("");
+                          setShowDeletePassword(false);
+                        }}>
+                          Cancel
+                        </AlertDialogCancel>
+                        <Button
+                          variant="destructive"
+                          onClick={handleDeleteAccount}
+                          disabled={isDeletingAccount || !deletePassword}
+                        >
+                          {isDeletingAccount ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Deleting...
+                            </>
+                          ) : (
+                            "Delete My Account"
+                          )}
+                        </Button>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
             </div>
