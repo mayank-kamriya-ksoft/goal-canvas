@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -144,6 +145,72 @@ serve(async (req) => {
 
         return new Response(
           JSON.stringify({ profile: result.data }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      case 'change-password': {
+        const { current_password, new_password } = data;
+
+        if (!current_password || !new_password) {
+          return new Response(
+            JSON.stringify({ error: 'Current and new password are required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        if (new_password.length < 6) {
+          return new Response(
+            JSON.stringify({ error: 'New password must be at least 6 characters' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Get current user password hash
+        const { data: user, error: userError } = await supabase
+          .from('users')
+          .select('password_hash')
+          .eq('id', userId)
+          .single();
+
+        if (userError || !user) {
+          console.error('Error fetching user for password change:', userError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to verify current password' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Verify current password
+        const isValidPassword = await bcrypt.compare(current_password, user.password_hash);
+        if (!isValidPassword) {
+          return new Response(
+            JSON.stringify({ error: 'Current password is incorrect' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Hash new password
+        const newPasswordHash = await bcrypt.hash(new_password);
+
+        // Update password
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ password_hash: newPasswordHash })
+          .eq('id', userId);
+
+        if (updateError) {
+          console.error('Error updating password:', updateError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to update password' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log('Password changed for user:', userId);
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Password updated successfully' }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
