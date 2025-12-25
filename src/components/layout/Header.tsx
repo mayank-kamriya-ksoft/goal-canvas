@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Sparkles } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Menu, X, Sparkles, User, LogOut } from "lucide-react";
 
 const navigation = [
   { name: "Home", href: "/" },
@@ -14,8 +15,14 @@ const navigation = [
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const { user, logout, isLoading } = useAuth();
 
   const isActive = (path: string) => location.pathname === path;
+
+  const handleLogout = async () => {
+    await logout();
+    setMobileMenuOpen(false);
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full glass-effect">
@@ -48,13 +55,44 @@ export function Header() {
           ))}
         </div>
 
-        {/* CTA Button */}
+        {/* CTA / User Menu */}
         <div className="hidden md:flex md:items-center md:gap-3">
-          <Link to="/create">
-            <Button variant="hero" size="default">
-              Start Creating
-            </Button>
-          </Link>
+          {!isLoading && (
+            <>
+              {user ? (
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary text-sm">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-foreground max-w-[150px] truncate">
+                      {user.email}
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleLogout}
+                    className="text-muted-foreground"
+                  >
+                    <LogOut className="h-4 w-4 mr-1" />
+                    Sign Out
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Link to="/auth">
+                    <Button variant="ghost" size="default">
+                      Log In
+                    </Button>
+                  </Link>
+                  <Link to="/create">
+                    <Button variant="hero" size="default">
+                      Start Creating
+                    </Button>
+                  </Link>
+                </>
+              )}
+            </>
+          )}
         </div>
 
         {/* Mobile Menu Button */}
@@ -90,12 +128,41 @@ export function Header() {
                 {item.name}
               </Link>
             ))}
-            <div className="pt-4 border-t border-border">
-              <Link to="/create" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="hero" size="lg" className="w-full">
-                  Start Creating
-                </Button>
-              </Link>
+            <div className="pt-4 border-t border-border space-y-2">
+              {!isLoading && (
+                <>
+                  {user ? (
+                    <>
+                      <div className="flex items-center gap-2 px-4 py-2 text-sm text-muted-foreground">
+                        <User className="h-4 w-4" />
+                        <span className="truncate">{user.email}</span>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="lg"
+                        className="w-full"
+                        onClick={handleLogout}
+                      >
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Sign Out
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Link to="/auth" onClick={() => setMobileMenuOpen(false)}>
+                        <Button variant="outline" size="lg" className="w-full">
+                          Log In
+                        </Button>
+                      </Link>
+                      <Link to="/create" onClick={() => setMobileMenuOpen(false)}>
+                        <Button variant="hero" size="lg" className="w-full">
+                          Start Creating
+                        </Button>
+                      </Link>
+                    </>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>
