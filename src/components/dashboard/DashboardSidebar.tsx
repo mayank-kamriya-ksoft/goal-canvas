@@ -59,17 +59,10 @@ export function DashboardSidebar({ selectedCategory, onCategoryChange }: Dashboa
   const isActive = (href: string) => location.pathname === href;
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border">
-      <SidebarHeader className="border-b border-sidebar-border p-4">
-        <div className="flex items-center justify-between">
-          {!isCollapsed && (
-            <span className="font-display font-semibold text-sidebar-foreground">
-              Dashboard
-            </span>
-          )}
-          <SidebarTrigger className="ml-auto" />
-        </div>
-      </SidebarHeader>
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border top-16 h-[calc(100vh-4rem)]">
+      <div className="flex items-center justify-end p-2 border-b border-sidebar-border">
+        <SidebarTrigger />
+      </div>
 
       <SidebarContent>
         {/* Quick Actions */}
