@@ -1,11 +1,80 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import * as bcrypt from "https://deno.land/x/bcrypt@v0.4.1/mod.ts";
+import { encodeBase64, decodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Verify password against stored hash (PBKDF2)
+async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+  try {
+    const encoder = new TextEncoder();
+    const combined = decodeBase64(storedHash);
+    const salt = combined.slice(0, 16);
+    const storedHashBytes = combined.slice(16);
+
+    const keyMaterial = await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(password),
+      "PBKDF2",
+      false,
+      ["deriveBits"]
+    );
+
+    const derivedBits = await crypto.subtle.deriveBits(
+      {
+        name: "PBKDF2",
+        salt: salt,
+        iterations: 100000,
+        hash: "SHA-256",
+      },
+      keyMaterial,
+      256
+    );
+
+    const derivedHashBytes = new Uint8Array(derivedBits);
+    
+    // Constant-time comparison
+    if (derivedHashBytes.length !== storedHashBytes.length) return false;
+    let diff = 0;
+    for (let i = 0; i < derivedHashBytes.length; i++) {
+      diff |= derivedHashBytes[i] ^ storedHashBytes[i];
+    }
+    return diff === 0;
+  } catch {
+    return false;
+  }
+}
+
+// Hash password using PBKDF2
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt: salt,
+      iterations: 100000,
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    256
+  );
+  const hashArray = new Uint8Array(derivedBits);
+  const combined = new Uint8Array(salt.length + hashArray.length);
+  combined.set(salt);
+  combined.set(hashArray, salt.length);
+  return encodeBase64(combined);
+}
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -187,7 +256,7 @@ serve(async (req) => {
         }
 
         // Verify current password
-        const isValidPassword = await bcrypt.compare(current_password, user.password_hash);
+        const isValidPassword = await verifyPassword(current_password, user.password_hash);
         if (!isValidPassword) {
           return new Response(
             JSON.stringify({ error: 'Current password is incorrect' }),
@@ -196,7 +265,7 @@ serve(async (req) => {
         }
 
         // Hash new password
-        const newPasswordHash = await bcrypt.hash(new_password);
+        const newPasswordHash = await hashPassword(new_password);
 
         // Update password
         const { error: updateError } = await supabase
@@ -246,7 +315,7 @@ serve(async (req) => {
         }
 
         // Verify password
-        const isValidPassword = await bcrypt.compare(password, user.password_hash);
+        const isValidPassword = await verifyPassword(password, user.password_hash);
         if (!isValidPassword) {
           return new Response(
             JSON.stringify({ error: 'Password is incorrect' }),
