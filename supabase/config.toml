@@ -14,3 +14,9 @@ verify_jwt = false
 
 [functions.vision-boards]
 verify_jwt = false
+
+[functions.templates]
+verify_jwt = false
+
+[functions.seed-templates]
+verify_jwt = false
