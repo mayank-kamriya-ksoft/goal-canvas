@@ -44,7 +44,7 @@ const categoryColors: Record<string, string> = {
 };
 
 export default function MyBoards() {
-  const { user, session, isLoading: authLoading } = useAuth();
+  const { user, session, isLoading: authLoading, logout } = useAuth();
   const navigate = useNavigate();
   const [boards, setBoards] = useState<VisionBoard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -65,7 +65,17 @@ export default function MyBoards() {
           body: { action: "list", token: session.token },
         });
 
-        if (error) throw error;
+        if (error) {
+          const status = (error as any)?.context?.status;
+          if (status === 401) {
+            toast.error("Your session expired. Please log in again.");
+            await logout();
+            navigate("/auth");
+            return;
+          }
+          throw error;
+        }
+
         setBoards(data.boards || []);
       } catch (err) {
         console.error("Failed to fetch boards:", err);
@@ -78,7 +88,7 @@ export default function MyBoards() {
     if (session?.token) {
       fetchBoards();
     }
-  }, [session]);
+  }, [session, logout, navigate]);
 
   const handleDelete = async (boardId: string) => {
     if (!session?.token) return;
@@ -89,7 +99,17 @@ export default function MyBoards() {
         body: { action: "delete", token: session.token, boardId },
       });
 
-      if (error) throw error;
+      if (error) {
+        const status = (error as any)?.context?.status;
+        if (status === 401) {
+          toast.error("Your session expired. Please log in again.");
+          await logout();
+          navigate("/auth");
+          return;
+        }
+        throw error;
+      }
+
       setBoards(boards.filter((b) => b.id !== boardId));
       toast.success("Board deleted");
     } catch (err) {
