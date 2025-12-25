@@ -1,10 +1,10 @@
-import { Layout } from "@/components/layout/Layout";
+import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { SEO } from "@/components/seo/SEO";
 import { TemplateGallery } from "@/components/templates/TemplateGallery";
 
 export default function Templates() {
   return (
-    <Layout>
+    <DashboardLayout>
       <SEO
         title="Free Vision Board Templates - Professional Designs for Every Goal"
         description="Browse 48+ free professional vision board templates for career, health, finance, relationships, and more. Start with a beautiful design and customize it to match your dreams."
@@ -25,6 +25,6 @@ export default function Templates() {
 
         <TemplateGallery />
       </div>
-    </Layout>
+    </DashboardLayout>
   );
 }
