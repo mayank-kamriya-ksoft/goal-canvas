@@ -8,18 +8,36 @@ const corsHeaders = {
 
 // Helper to validate session
 async function validateSession(supabase: any, token: string) {
-  if (!token) return null;
+  if (!token) {
+    console.log('No token provided');
+    return null;
+  }
 
-  const { data: session } = await supabase
+  console.log('Validating token:', token.substring(0, 10) + '...');
+
+  const { data: session, error } = await supabase
     .from('sessions')
     .select('id, user_id, expires_at')
     .eq('token', token)
     .maybeSingle();
 
-  if (!session || new Date(session.expires_at) < new Date()) {
+  if (error) {
+    console.error('Session query error:', error);
     return null;
   }
 
+  console.log('Session found:', session ? 'yes' : 'no');
+
+  if (!session) {
+    return null;
+  }
+
+  if (new Date(session.expires_at) < new Date()) {
+    console.log('Session expired:', session.expires_at);
+    return null;
+  }
+
+  console.log('Session valid for user:', session.user_id);
   return session;
 }
 
