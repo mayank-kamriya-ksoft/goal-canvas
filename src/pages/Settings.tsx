@@ -17,8 +17,8 @@ import {
   Key,
   Eye,
   EyeOff,
-  Camera,
   Upload,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -62,6 +62,7 @@ export default function Settings() {
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isRemovingAvatar, setIsRemovingAvatar] = useState(false);
 
   // Form state
   const [displayName, setDisplayName] = useState("");
@@ -198,6 +199,50 @@ export default function Settings() {
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!avatarUrl || !user?.id || !session?.token) return;
+
+    setIsRemovingAvatar(true);
+    try {
+      // Extract file path from URL
+      const urlParts = avatarUrl.split("/avatars/");
+      if (urlParts.length > 1) {
+        const filePath = urlParts[1];
+        
+        // Delete from storage
+        const { error: deleteError } = await supabase.storage
+          .from("avatars")
+          .remove([filePath]);
+
+        if (deleteError) {
+          console.error("Delete error:", deleteError);
+          // Continue anyway to update profile
+        }
+      }
+
+      // Update profile to remove avatar URL
+      const { error: updateError } = await supabase.functions.invoke("user-profile", {
+        body: {
+          action: "update",
+          token: session.token,
+          avatar_url: null,
+        },
+      });
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      setAvatarUrl(null);
+      toast.success("Avatar removed successfully");
+    } catch (err) {
+      console.error("Failed to remove avatar:", err);
+      toast.error("Failed to remove avatar");
+    } finally {
+      setIsRemovingAvatar(false);
     }
   };
 
@@ -386,24 +431,41 @@ export default function Settings() {
                         className="hidden"
                         id="avatar-upload"
                       />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isUploadingAvatar}
-                      >
-                        {isUploadingAvatar ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Uploading...
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="h-4 w-4" />
-                            Upload Photo
-                          </>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploadingAvatar || isRemovingAvatar}
+                        >
+                          {isUploadingAvatar ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Uploading...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-4 w-4" />
+                              Upload Photo
+                            </>
+                          )}
+                        </Button>
+                        {avatarUrl && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleRemoveAvatar}
+                            disabled={isUploadingAvatar || isRemovingAvatar}
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            {isRemovingAvatar ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
                         )}
-                      </Button>
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         JPG, PNG or GIF. Max 2MB.
                       </p>
