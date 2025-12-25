@@ -1,9 +1,11 @@
-import { useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { SEO } from "@/components/seo/SEO";
 import { VisionCanvas } from "@/components/canvas/VisionCanvas";
-import { Briefcase, GraduationCap, Heart, Wallet, Star, Info } from "lucide-react";
+import { getTemplateById } from "@/services/templatesService";
+import { VisionBoardTemplate } from "@/types/templates";
+import { Briefcase, GraduationCap, Heart, Wallet, Star, Info, Loader2 } from "lucide-react";
 
 const categories = [
   { id: "career", label: "Career", icon: Briefcase, color: "bg-category-career" },
@@ -13,7 +15,8 @@ const categories = [
   { id: "personal", label: "Personal", icon: Star, color: "bg-category-personal" },
 ];
 
-const templates = [
+// Legacy templates for backward compatibility
+const legacyTemplates = [
   {
     id: 1,
     title: "Career Advancement Board",
@@ -54,13 +57,44 @@ const templates = [
 
 export default function CreateBoard() {
   const [searchParams] = useSearchParams();
-  const templateId = searchParams.get("template");
+  const templateId = searchParams.get("templateId"); // New DB template
+  const legacyTemplateId = searchParams.get("template"); // Legacy template
   const boardId = searchParams.get("board");
   
-  const template = useMemo(() => {
-    if (!templateId) return null;
-    return templates.find(t => t.id === parseInt(templateId)) || null;
+  const [dbTemplate, setDbTemplate] = useState<VisionBoardTemplate | null>(null);
+  const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
+  
+  // Fetch DB template if templateId is provided
+  useEffect(() => {
+    if (!templateId) {
+      setDbTemplate(null);
+      return;
+    }
+    
+    const loadTemplate = async () => {
+      setIsLoadingTemplate(true);
+      try {
+        const template = await getTemplateById(templateId);
+        setDbTemplate(template);
+      } catch (error) {
+        console.error("Failed to load template:", error);
+      } finally {
+        setIsLoadingTemplate(false);
+      }
+    };
+    
+    loadTemplate();
   }, [templateId]);
+  
+  // Legacy template support
+  const legacyTemplate = useMemo(() => {
+    if (!legacyTemplateId) return null;
+    return legacyTemplates.find(t => t.id === parseInt(legacyTemplateId)) || null;
+  }, [legacyTemplateId]);
+
+  // Determine which template to use
+  const activeTemplate = dbTemplate || legacyTemplate;
+  const templateCategory = dbTemplate?.category || legacyTemplate?.category || "personal";
 
   return (
     <Layout hideFooter>
@@ -80,7 +114,11 @@ export default function CreateBoard() {
             {categories.map((cat) => (
               <button
                 key={cat.id}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors whitespace-nowrap"
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
+                  templateCategory === cat.id 
+                    ? "bg-primary text-primary-foreground" 
+                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                }`}
               >
                 <div className={`w-3 h-3 rounded-full ${cat.color}`} />
                 {cat.label}
@@ -96,11 +134,21 @@ export default function CreateBoard() {
 
         {/* Canvas Area */}
         <div className="flex-1 p-4 bg-canvas">
-          <VisionCanvas 
-            template={template} 
-            boardId={boardId}
-            initialCategory={template?.category || "personal"}
-          />
+          {isLoadingTemplate ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading template...</p>
+              </div>
+            </div>
+          ) : (
+            <VisionCanvas 
+              template={legacyTemplate} 
+              dbTemplate={dbTemplate}
+              boardId={boardId}
+              initialCategory={templateCategory}
+            />
+          )}
         </div>
       </div>
     </Layout>

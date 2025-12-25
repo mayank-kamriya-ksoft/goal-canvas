@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { VisionBoardTemplate } from "@/types/templates";
 import {
   Type,
   Image as ImageIcon,
@@ -26,7 +27,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-interface Template {
+interface LegacyTemplate {
   id: number;
   title: string;
   category: string;
@@ -35,7 +36,8 @@ interface Template {
 
 interface VisionCanvasProps {
   onExport?: (dataUrl: string) => void;
-  template?: Template | null;
+  template?: LegacyTemplate | null;
+  dbTemplate?: VisionBoardTemplate | null;
   boardId?: string | null;
   initialCategory?: string;
 }
@@ -55,7 +57,7 @@ const PRESET_COLORS = [
   "#FFFFFF", // White
 ];
 
-export function VisionCanvas({ onExport, template, boardId, initialCategory = "personal" }: VisionCanvasProps) {
+export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialCategory = "personal" }: VisionCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [canvas, setCanvas] = useState<FabricCanvas | null>(null);
@@ -67,7 +69,7 @@ export function VisionCanvas({ onExport, template, boardId, initialCategory = "p
   const [currentBoardId, setCurrentBoardId] = useState<string | null>(boardId || null);
   const [boardTitle, setBoardTitle] = useState("Untitled Board");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const templateLoadedRef = useRef<number | null>(null);
+  const templateLoadedRef = useRef<number | string | null>(null);
   const boardLoadedRef = useRef<string | null>(null);
   
   const { user, session } = useAuth();
@@ -120,7 +122,7 @@ export function VisionCanvas({ onExport, template, boardId, initialCategory = "p
     return quotes[category] || quotes.career;
   };
 
-  // Load template when canvas is ready and template changes
+  // Load legacy template when canvas is ready and template changes
   useEffect(() => {
     if (!canvas || !template || templateLoadedRef.current === template.id) return;
     
@@ -155,6 +157,95 @@ export function VisionCanvas({ onExport, template, boardId, initialCategory = "p
     setBoardTitle(template.title);
     toast.success(`${template.title} loaded! ✨`);
   }, [canvas, template]);
+
+  // Load DB template when canvas is ready and dbTemplate changes
+  useEffect(() => {
+    if (!canvas || !dbTemplate || templateLoadedRef.current === dbTemplate.id) return;
+    
+    templateLoadedRef.current = dbTemplate.id;
+    canvas.clear();
+    
+    const layout = dbTemplate.layout_data;
+    
+    // Set background color from template
+    if (layout.backgroundColor) {
+      canvas.backgroundColor = layout.backgroundColor;
+    }
+    
+    // Render each layout item
+    layout.items?.forEach(async (item) => {
+      switch (item.type) {
+        case 'text': {
+          const textbox = new Textbox(item.content || 'Add text...', {
+            left: item.x,
+            top: item.y,
+            width: item.width,
+            fontSize: item.fontSize || 18,
+            fontFamily: item.fontFamily || 'DM Sans, sans-serif',
+            fill: item.color || '#333333',
+            editable: true,
+          });
+          canvas.add(textbox);
+          break;
+        }
+        case 'quote': {
+          const quoteBox = new Textbox(item.content || 'Add your quote...', {
+            left: item.x,
+            top: item.y,
+            width: item.width,
+            fontSize: item.fontSize || 16,
+            fontFamily: item.fontFamily || 'DM Sans, sans-serif',
+            fontStyle: 'italic',
+            fill: item.color || '#666666',
+            editable: true,
+          });
+          canvas.add(quoteBox);
+          break;
+        }
+        case 'image': {
+          if (item.imageUrl) {
+            try {
+              const img = await FabricImage.fromURL(item.imageUrl, { crossOrigin: 'anonymous' });
+              img.set({
+                left: item.x,
+                top: item.y,
+              });
+              // Scale to fit the specified dimensions
+              if (item.width && item.height) {
+                img.scaleToWidth(item.width);
+                const currentHeight = img.getScaledHeight();
+                if (currentHeight > item.height) {
+                  img.scaleToHeight(item.height);
+                }
+              }
+              canvas.add(img);
+              canvas.renderAll();
+            } catch (error) {
+              console.error('Failed to load image:', item.imageUrl, error);
+              // Add placeholder rect if image fails
+              const placeholder = new Rect({
+                left: item.x,
+                top: item.y,
+                width: item.width,
+                height: item.height,
+                fill: 'rgba(200, 200, 200, 0.3)',
+                stroke: '#ccc',
+                strokeWidth: 1,
+                rx: 8,
+                ry: 8,
+              });
+              canvas.add(placeholder);
+            }
+          }
+          break;
+        }
+      }
+    });
+    
+    canvas.renderAll();
+    setBoardTitle(dbTemplate.name);
+    toast.success(`${dbTemplate.name} loaded! ✨`);
+  }, [canvas, dbTemplate]);
 
   // Load saved board if boardId is provided
   useEffect(() => {
@@ -208,7 +299,7 @@ export function VisionCanvas({ onExport, template, boardId, initialCategory = "p
   // CAREER: Professional corporate style with clean lines
   const renderCareerTemplate = (
     canvas: FabricCanvas,
-    template: Template,
+    template: LegacyTemplate,
     colors: { primary: string; light: string; accent: string; dark: string },
     quote: string
   ) => {
@@ -341,7 +432,7 @@ export function VisionCanvas({ onExport, template, boardId, initialCategory = "p
   // EDUCATION: Academic notebook style
   const renderEducationTemplate = (
     canvas: FabricCanvas,
-    template: Template,
+    template: LegacyTemplate,
     colors: { primary: string; light: string; accent: string; dark: string },
     quote: string
   ) => {
@@ -455,7 +546,7 @@ export function VisionCanvas({ onExport, template, boardId, initialCategory = "p
   // HEALTH: Organic wellness style with flowing shapes
   const renderHealthTemplate = (
     canvas: FabricCanvas,
-    template: Template,
+    template: LegacyTemplate,
     colors: { primary: string; light: string; accent: string; dark: string },
     quote: string
   ) => {
@@ -567,7 +658,7 @@ export function VisionCanvas({ onExport, template, boardId, initialCategory = "p
   // FINANCE: Modern dashboard style with charts aesthetic
   const renderFinanceTemplate = (
     canvas: FabricCanvas,
-    template: Template,
+    template: LegacyTemplate,
     colors: { primary: string; light: string; accent: string; dark: string },
     quote: string
   ) => {
@@ -696,7 +787,7 @@ export function VisionCanvas({ onExport, template, boardId, initialCategory = "p
   // PERSONAL: Creative scrapbook/mood board style
   const renderPersonalTemplate = (
     canvas: FabricCanvas,
-    template: Template,
+    template: LegacyTemplate,
     colors: { primary: string; light: string; accent: string; dark: string },
     quote: string
   ) => {
