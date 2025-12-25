@@ -1,10 +1,17 @@
+import { useState } from "react";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { SEO } from "@/components/seo/SEO";
 import { TemplateGallery } from "@/components/templates/TemplateGallery";
+import { TemplateCategoryId } from "@/types/templates";
 
 export default function Templates() {
+  const [selectedCategory, setSelectedCategory] = useState<TemplateCategoryId | null>(null);
+
   return (
-    <DashboardLayout>
+    <DashboardLayout
+      selectedTemplateCategory={selectedCategory}
+      onTemplateCategoryChange={(cat) => setSelectedCategory(cat as TemplateCategoryId | null)}
+    >
       <SEO
         title="Free Vision Board Templates - Professional Designs for Every Goal"
         description="Browse 48+ free professional vision board templates for career, health, finance, relationships, and more. Start with a beautiful design and customize it to match your dreams."
@@ -23,7 +30,7 @@ export default function Templates() {
           </p>
         </div>
 
-        <TemplateGallery />
+        <TemplateGallery selectedCategory={selectedCategory} />
       </div>
     </DashboardLayout>
   );

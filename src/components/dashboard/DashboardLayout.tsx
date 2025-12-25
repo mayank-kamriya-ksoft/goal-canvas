@@ -10,6 +10,8 @@ interface DashboardLayoutProps {
   children: ReactNode;
   selectedCategory?: string | null;
   onCategoryChange?: (category: string | null) => void;
+  selectedTemplateCategory?: string | null;
+  onTemplateCategoryChange?: (category: string | null) => void;
   hideFooter?: boolean;
 }
 
@@ -17,6 +19,8 @@ export function DashboardLayout({
   children,
   selectedCategory,
   onCategoryChange,
+  selectedTemplateCategory,
+  onTemplateCategoryChange,
   hideFooter = false,
 }: DashboardLayoutProps) {
   const isMobile = useIsMobile();
@@ -31,6 +35,8 @@ export function DashboardLayout({
           onOpenChange={setMobileDrawerOpen}
           selectedCategory={selectedCategory}
           onCategoryChange={onCategoryChange}
+          selectedTemplateCategory={selectedTemplateCategory}
+          onTemplateCategoryChange={onTemplateCategoryChange}
         />
         <main className="flex-1">{children}</main>
         {!hideFooter && <Footer />}
@@ -46,6 +52,8 @@ export function DashboardLayout({
           <DashboardSidebar
             selectedCategory={selectedCategory}
             onCategoryChange={onCategoryChange}
+            selectedTemplateCategory={selectedTemplateCategory}
+            onTemplateCategoryChange={onTemplateCategoryChange}
           />
           <SidebarInset className="flex flex-col flex-1 min-w-0 overflow-auto">
             <main className="flex-1 min-w-0">{children}</main>
