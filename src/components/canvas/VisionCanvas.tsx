@@ -15,8 +15,16 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+interface Template {
+  id: number;
+  title: string;
+  category: string;
+  goals: string[];
+}
+
 interface VisionCanvasProps {
   onExport?: (dataUrl: string) => void;
+  template?: Template | null;
 }
 
 const CANVAS_WIDTH = 1200;
@@ -34,13 +42,14 @@ const PRESET_COLORS = [
   "#FFFFFF", // White
 ];
 
-export function VisionCanvas({ onExport }: VisionCanvasProps) {
+export function VisionCanvas({ onExport, template }: VisionCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [canvas, setCanvas] = useState<FabricCanvas | null>(null);
   const [zoom, setZoom] = useState(1);
   const [activeColor, setActiveColor] = useState("#2D5A4A");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const templateLoadedRef = useRef<number | null>(null);
 
   // Initialize canvas
   useEffect(() => {
@@ -59,6 +68,75 @@ export function VisionCanvas({ onExport }: VisionCanvasProps) {
       fabricCanvas.dispose();
     };
   }, []);
+
+  // Load template when canvas is ready and template changes
+  useEffect(() => {
+    if (!canvas || !template || templateLoadedRef.current === template.id) return;
+    
+    // Mark template as loaded to prevent re-loading
+    templateLoadedRef.current = template.id;
+    
+    // Clear existing content
+    canvas.clear();
+    canvas.backgroundColor = "#FAFAF8";
+    
+    // Add title
+    const title = new Textbox(template.title, {
+      left: CANVAS_WIDTH / 2 - 200,
+      top: 40,
+      width: 400,
+      fontSize: 32,
+      fontFamily: "DM Sans, sans-serif",
+      fontWeight: "bold",
+      fill: "#2D5A4A",
+      textAlign: "center",
+      editable: true,
+    });
+    canvas.add(title);
+    
+    // Add goals as text boxes in a grid
+    const startY = 120;
+    const goalWidth = 250;
+    const goalHeight = 100;
+    const gap = 20;
+    const cols = 2;
+    
+    template.goals.forEach((goal, index) => {
+      const col = index % cols;
+      const row = Math.floor(index / cols);
+      const x = (CANVAS_WIDTH / 2 - goalWidth - gap / 2) + col * (goalWidth + gap);
+      const y = startY + row * (goalHeight + gap);
+      
+      // Background rect
+      const rect = new Rect({
+        left: x,
+        top: y,
+        width: goalWidth,
+        height: goalHeight,
+        fill: "#E8F5F0",
+        rx: 12,
+        ry: 12,
+        selectable: true,
+      });
+      canvas.add(rect);
+      
+      // Goal text
+      const goalText = new Textbox(goal, {
+        left: x + 15,
+        top: y + (goalHeight / 2) - 12,
+        width: goalWidth - 30,
+        fontSize: 18,
+        fontFamily: "DM Sans, sans-serif",
+        fill: "#2D5A4A",
+        textAlign: "center",
+        editable: true,
+      });
+      canvas.add(goalText);
+    });
+    
+    canvas.renderAll();
+    toast.success(`Template "${template.title}" loaded!`);
+  }, [canvas, template]);
 
   // Handle container resize
   useEffect(() => {

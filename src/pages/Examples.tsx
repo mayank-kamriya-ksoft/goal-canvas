@@ -163,7 +163,7 @@ export default function Examples() {
                     </ul>
                   </div>
 
-                  <Link to="/create" className="block mt-4">
+                  <Link to={`/create?template=${board.id}`} className="block mt-4">
                     <Button variant="outline" size="sm" className="w-full">
                       Use This Template
                     </Button>
