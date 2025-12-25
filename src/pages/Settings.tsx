@@ -14,6 +14,9 @@ import {
   Bell,
   Palette,
   Shield,
+  Key,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -21,6 +24,15 @@ import { z } from "zod";
 const profileSchema = z.object({
   display_name: z.string().max(100, "Display name must be less than 100 characters").optional(),
   bio: z.string().max(500, "Bio must be less than 500 characters").optional(),
+});
+
+const passwordSchema = z.object({
+  current_password: z.string().min(1, "Current password is required"),
+  new_password: z.string().min(6, "New password must be at least 6 characters"),
+  confirm_password: z.string().min(1, "Please confirm your new password"),
+}).refine((data) => data.new_password === data.confirm_password, {
+  message: "Passwords don't match",
+  path: ["confirm_password"],
 });
 
 interface Profile {
@@ -44,12 +56,21 @@ export default function Settings() {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   // Form state
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [themePreference, setThemePreference] = useState("system");
   const [emailNotifications, setEmailNotifications] = useState(true);
+
+  // Password change state
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -139,6 +160,61 @@ export default function Settings() {
       toast.error("Failed to save settings");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handlePasswordChange = async () => {
+    try {
+      passwordSchema.parse({
+        current_password: currentPassword,
+        new_password: newPassword,
+        confirm_password: confirmPassword,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        toast.error(error.errors[0].message);
+        return;
+      }
+    }
+
+    if (!session?.token) return;
+
+    setIsChangingPassword(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("user-profile", {
+        body: {
+          action: "change-password",
+          token: session.token,
+          current_password: currentPassword,
+          new_password: newPassword,
+        },
+      });
+
+      if (error) {
+        const status = (error as any)?.context?.status;
+        if (status === 401) {
+          toast.error("Your session expired. Please log in again.");
+          await logout();
+          navigate("/auth");
+          return;
+        }
+        throw error;
+      }
+
+      if (data.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      toast.success("Password changed successfully");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      console.error("Failed to change password:", err);
+      toast.error(err?.message || "Failed to change password");
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -259,6 +335,114 @@ export default function Settings() {
                     </p>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Password Change Section */}
+            <div className="card-elevated p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10">
+                  <Key className="h-5 w-5 text-destructive" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-foreground">Change Password</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Update your account password
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {/* Current Password */}
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    Current Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showCurrentPassword ? "text" : "password"}
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="Enter your current password"
+                      className="w-full px-4 py-3 pr-12 rounded-lg border border-input bg-background focus:ring-2 focus:ring-ring focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showCurrentPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* New Password */}
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    New Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? "text" : "password"}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter your new password"
+                      className="w-full px-4 py-3 pr-12 rounded-lg border border-input bg-background focus:ring-2 focus:ring-ring focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showNewPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Minimum 6 characters
+                  </p>
+                </div>
+
+                {/* Confirm New Password */}
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    Confirm New Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm your new password"
+                      className="w-full px-4 py-3 pr-12 rounded-lg border border-input bg-background focus:ring-2 focus:ring-ring focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                <Button
+                  variant="outline"
+                  onClick={handlePasswordChange}
+                  disabled={isChangingPassword || !currentPassword || !newPassword || !confirmPassword}
+                  className="w-full sm:w-auto"
+                >
+                  {isChangingPassword ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Changing Password...
+                    </>
+                  ) : (
+                    <>
+                      <Key className="h-4 w-4" />
+                      Change Password
+                    </>
+                  )}
+                </Button>
               </div>
             </div>
 
