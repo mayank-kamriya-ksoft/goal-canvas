@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Canvas as FabricCanvas, Rect, Textbox, FabricImage, Shadow } from "fabric";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 import {
   Type,
   Image as ImageIcon,
@@ -18,6 +21,8 @@ import {
   Minus,
   ChevronDown,
   ChevronUp,
+  Save,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -31,6 +36,8 @@ interface Template {
 interface VisionCanvasProps {
   onExport?: (dataUrl: string) => void;
   template?: Template | null;
+  boardId?: string | null;
+  initialCategory?: string;
 }
 
 const CANVAS_WIDTH = 1200;
@@ -48,7 +55,7 @@ const PRESET_COLORS = [
   "#FFFFFF", // White
 ];
 
-export function VisionCanvas({ onExport, template }: VisionCanvasProps) {
+export function VisionCanvas({ onExport, template, boardId, initialCategory = "personal" }: VisionCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [canvas, setCanvas] = useState<FabricCanvas | null>(null);
@@ -56,8 +63,15 @@ export function VisionCanvas({ onExport, template }: VisionCanvasProps) {
   const [activeColor, setActiveColor] = useState("#2D5A4A");
   const [hasSelection, setHasSelection] = useState(false);
   const [showAllColors, setShowAllColors] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [currentBoardId, setCurrentBoardId] = useState<string | null>(boardId || null);
+  const [boardTitle, setBoardTitle] = useState("Untitled Board");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const templateLoadedRef = useRef<number | null>(null);
+  const boardLoadedRef = useRef<string | null>(null);
+  
+  const { user, session } = useAuth();
+  const navigate = useNavigate();
 
   // Initialize canvas
   useEffect(() => {
@@ -138,8 +152,44 @@ export function VisionCanvas({ onExport, template }: VisionCanvasProps) {
     }
     
     canvas.renderAll();
+    setBoardTitle(template.title);
     toast.success(`${template.title} loaded! ✨`);
   }, [canvas, template]);
+
+  // Load saved board if boardId is provided
+  useEffect(() => {
+    if (!canvas || !boardId || !session?.token || boardLoadedRef.current === boardId) return;
+    
+    const loadBoard = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("vision-boards", {
+          body: { action: "get", token: session.token, boardId },
+        });
+
+        if (error || !data?.board) {
+          toast.error("Failed to load board");
+          return;
+        }
+
+        boardLoadedRef.current = boardId;
+        setCurrentBoardId(boardId);
+        setBoardTitle(data.board.title);
+        
+        // Load canvas data
+        if (data.board.board_data && typeof data.board.board_data === 'object') {
+          canvas.loadFromJSON(data.board.board_data, () => {
+            canvas.renderAll();
+            toast.success("Board loaded!");
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load board:", err);
+        toast.error("Failed to load board");
+      }
+    };
+
+    loadBoard();
+  }, [canvas, boardId, session]);
 
   // CAREER: Professional corporate style with clean lines
   const renderCareerTemplate = (
@@ -1037,6 +1087,60 @@ export function VisionCanvas({ onExport, template }: VisionCanvasProps) {
     onExport?.(dataUrl);
   }, [canvas, onExport]);
 
+  const saveBoard = useCallback(async () => {
+    if (!canvas) return;
+
+    // If user is not logged in, redirect to auth
+    if (!user || !session?.token) {
+      toast.error("Please log in to save your board");
+      navigate("/auth");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const canvasData = canvas.toJSON();
+      const category = template?.category || initialCategory;
+
+      if (currentBoardId) {
+        // Update existing board
+        const { error } = await supabase.functions.invoke("vision-boards", {
+          body: {
+            action: "update",
+            token: session.token,
+            boardId: currentBoardId,
+            title: boardTitle,
+            board_data: canvasData,
+            category,
+          },
+        });
+
+        if (error) throw error;
+        toast.success("Board saved!");
+      } else {
+        // Create new board
+        const { data, error } = await supabase.functions.invoke("vision-boards", {
+          body: {
+            action: "create",
+            token: session.token,
+            title: boardTitle || template?.title || "My Vision Board",
+            board_data: canvasData,
+            category,
+          },
+        });
+
+        if (error) throw error;
+        setCurrentBoardId(data.board.id);
+        toast.success("Board saved!");
+      }
+    } catch (err) {
+      console.error("Failed to save board:", err);
+      toast.error("Failed to save board");
+    } finally {
+      setIsSaving(false);
+    }
+  }, [canvas, user, session, currentBoardId, boardTitle, template, initialCategory, navigate]);
+
   return (
     <div className="flex flex-col h-full bg-canvas rounded-xl overflow-hidden border border-border">
       {/* Toolbar */}
@@ -1156,6 +1260,21 @@ export function VisionCanvas({ onExport, template }: VisionCanvasProps) {
           </Button>
 
           <div className="h-6 w-px bg-border mx-1" />
+
+          <Button 
+            variant="canvas" 
+            size="sm" 
+            onClick={saveBoard}
+            disabled={isSaving}
+            title={user ? "Save to your account" : "Log in to save"}
+          >
+            {isSaving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            <span className="hidden sm:inline">{isSaving ? "Saving..." : "Save"}</span>
+          </Button>
 
           <Button variant="hero" size="sm" onClick={exportCanvas}>
             <Download className="h-4 w-4" />

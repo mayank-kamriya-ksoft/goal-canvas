@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 
 import Index from "./pages/Index";
 import CreateBoard from "./pages/CreateBoard";
+import MyBoards from "./pages/MyBoards";
 import Examples from "./pages/Examples";
 import HowToCreate from "./pages/HowToCreate";
 import VisionBoardCareer from "./pages/VisionBoardCareer";
@@ -34,6 +35,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/create" element={<CreateBoard />} />
+              <Route path="/my-boards" element={<MyBoards />} />
               <Route path="/examples" element={<Examples />} />
               <Route path="/how-to-create" element={<HowToCreate />} />
               <Route path="/vision-board-career" element={<VisionBoardCareer />} />

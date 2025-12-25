@@ -55,11 +55,13 @@ const templates = [
 export default function CreateBoard() {
   const [searchParams] = useSearchParams();
   const templateId = searchParams.get("template");
+  const boardId = searchParams.get("board");
   
   const template = useMemo(() => {
     if (!templateId) return null;
     return templates.find(t => t.id === parseInt(templateId)) || null;
   }, [templateId]);
+
   return (
     <Layout hideFooter>
       <SEO
@@ -94,7 +96,11 @@ export default function CreateBoard() {
 
         {/* Canvas Area */}
         <div className="flex-1 p-4 bg-canvas">
-          <VisionCanvas template={template} />
+          <VisionCanvas 
+            template={template} 
+            boardId={boardId}
+            initialCategory={template?.category || "personal"}
+          />
         </div>
       </div>
     </Layout>
