@@ -220,6 +220,94 @@ serve(async (req) => {
         );
       }
 
+      case 'delete-account': {
+        const { password } = data;
+
+        if (!password) {
+          return new Response(
+            JSON.stringify({ error: 'Password is required to delete account' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Get current user password hash to verify
+        const { data: user, error: userError } = await supabase
+          .from('users')
+          .select('password_hash')
+          .eq('id', userId)
+          .single();
+
+        if (userError || !user) {
+          console.error('Error fetching user for deletion:', userError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to verify password' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Verify password
+        const isValidPassword = await bcrypt.compare(password, user.password_hash);
+        if (!isValidPassword) {
+          return new Response(
+            JSON.stringify({ error: 'Password is incorrect' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Delete all user data in order (respecting foreign key constraints)
+        
+        // 1. Delete vision boards
+        const { error: boardsError } = await supabase
+          .from('vision_boards')
+          .delete()
+          .eq('user_id', userId);
+        
+        if (boardsError) {
+          console.error('Error deleting vision boards:', boardsError);
+        }
+
+        // 2. Delete profile
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .delete()
+          .eq('user_id', userId);
+        
+        if (profileError) {
+          console.error('Error deleting profile:', profileError);
+        }
+
+        // 3. Delete all sessions
+        const { error: sessionsError } = await supabase
+          .from('sessions')
+          .delete()
+          .eq('user_id', userId);
+        
+        if (sessionsError) {
+          console.error('Error deleting sessions:', sessionsError);
+        }
+
+        // 4. Delete user
+        const { error: deleteUserError } = await supabase
+          .from('users')
+          .delete()
+          .eq('id', userId);
+
+        if (deleteUserError) {
+          console.error('Error deleting user:', deleteUserError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to delete account' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log('Account deleted for user:', userId);
+
+        return new Response(
+          JSON.stringify({ success: true, message: 'Account deleted successfully' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: 'Invalid action' }),
