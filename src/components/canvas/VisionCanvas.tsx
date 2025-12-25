@@ -162,25 +162,35 @@ export function VisionCanvas({ onExport, template, boardId, initialCategory = "p
     
     const loadBoard = async () => {
       try {
+        console.log("Loading board:", boardId);
         const { data, error } = await supabase.functions.invoke("vision-boards", {
           body: { action: "get", token: session.token, boardId },
         });
 
         if (error || !data?.board) {
+          console.error("Failed to load board data:", error);
           toast.error("Failed to load board");
           return;
         }
 
+        console.log("Board data received:", data.board);
         boardLoadedRef.current = boardId;
         setCurrentBoardId(boardId);
         setBoardTitle(data.board.title);
         
-        // Load canvas data
+        // Load canvas data - Fabric.js v6 uses Promise-based loadFromJSON
         if (data.board.board_data && typeof data.board.board_data === 'object') {
-          canvas.loadFromJSON(data.board.board_data, () => {
+          console.log("Loading canvas JSON:", data.board.board_data);
+          try {
+            await canvas.loadFromJSON(data.board.board_data);
             canvas.renderAll();
             toast.success("Board loaded!");
-          });
+          } catch (loadErr) {
+            console.error("Error loading JSON into canvas:", loadErr);
+            toast.error("Failed to render board");
+          }
+        } else {
+          console.log("No board_data found or invalid format");
         }
       } catch (err) {
         console.error("Failed to load board:", err);
