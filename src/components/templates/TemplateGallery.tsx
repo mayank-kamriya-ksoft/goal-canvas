@@ -11,15 +11,25 @@ import { Sparkles } from "lucide-react";
 
 interface TemplateGalleryProps {
   onSelectTemplate?: (template: VisionBoardTemplate) => void;
+  selectedCategory?: TemplateCategoryId | null;
 }
 
-export function TemplateGallery({ onSelectTemplate }: TemplateGalleryProps) {
+export function TemplateGallery({ onSelectTemplate, selectedCategory: externalCategory }: TemplateGalleryProps) {
   const navigate = useNavigate();
   const [templates, setTemplates] = useState<VisionBoardTemplate[]>([]);
   const [groupedTemplates, setGroupedTemplates] = useState<Record<string, VisionBoardTemplate[]>>({});
-  const [selectedCategory, setSelectedCategory] = useState<TemplateCategoryId | 'all'>('all');
+  const [internalCategory, setInternalCategory] = useState<TemplateCategoryId | 'all'>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [previewTemplate, setPreviewTemplate] = useState<VisionBoardTemplate | null>(null);
+
+  // Use external category if provided, otherwise use internal state
+  const selectedCategory = externalCategory !== undefined 
+    ? (externalCategory ?? 'all') 
+    : internalCategory;
+  const setSelectedCategory = externalCategory !== undefined 
+    ? () => {} // External control, no-op for internal 
+    : setInternalCategory;
+  const showInlineCategoryFilter = externalCategory === undefined;
 
   useEffect(() => {
     loadTemplates();
@@ -83,10 +93,12 @@ export function TemplateGallery({ onSelectTemplate }: TemplateGalleryProps) {
 
   return (
     <div className="space-y-8">
-      <CategoryFilter 
-        selectedCategory={selectedCategory} 
-        onCategoryChange={setSelectedCategory} 
-      />
+      {showInlineCategoryFilter && (
+        <CategoryFilter 
+          selectedCategory={selectedCategory} 
+          onCategoryChange={setSelectedCategory} 
+        />
+      )}
 
       {displayByCategory ? (
         // Show grouped by category

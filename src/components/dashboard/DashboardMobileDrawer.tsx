@@ -11,6 +11,15 @@ import {
   Star,
   Menu,
   X,
+  Users,
+  Building,
+  Home,
+  Leaf,
+  Trophy,
+  Plane,
+  Palette,
+  User,
+  LayoutGrid,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,7 +38,7 @@ const navItems = [
   { title: "Settings", href: "/settings", icon: Settings },
 ];
 
-const categories = [
+const boardCategories = [
   { id: "career", label: "Career", icon: Briefcase, color: "bg-category-career" },
   { id: "education", label: "Education", icon: GraduationCap, color: "bg-category-education" },
   { id: "health", label: "Health", icon: Heart, color: "bg-category-health" },
@@ -37,11 +46,28 @@ const categories = [
   { id: "personal", label: "Personal", icon: Star, color: "bg-category-personal" },
 ];
 
+const templateCategories = [
+  { id: "career", label: "Career", icon: Briefcase, color: "bg-amber-500" },
+  { id: "health", label: "Health", icon: Heart, color: "bg-rose-500" },
+  { id: "relationships", label: "Relationships", icon: Users, color: "bg-pink-500" },
+  { id: "finance", label: "Finance", icon: Wallet, color: "bg-emerald-500" },
+  { id: "personal", label: "Personal", icon: User, color: "bg-violet-500" },
+  { id: "business", label: "Business", icon: Building, color: "bg-blue-500" },
+  { id: "students", label: "Students", icon: GraduationCap, color: "bg-indigo-500" },
+  { id: "family", label: "Family", icon: Home, color: "bg-orange-500" },
+  { id: "wellness", label: "Wellness", icon: Leaf, color: "bg-green-500" },
+  { id: "success", label: "Success", icon: Trophy, color: "bg-yellow-500" },
+  { id: "travel", label: "Travel", icon: Plane, color: "bg-sky-500" },
+  { id: "creativity", label: "Creativity", icon: Palette, color: "bg-purple-500" },
+];
+
 interface DashboardMobileDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedCategory?: string | null;
   onCategoryChange?: (category: string | null) => void;
+  selectedTemplateCategory?: string | null;
+  onTemplateCategoryChange?: (category: string | null) => void;
 }
 
 export function DashboardMobileDrawer({
@@ -49,10 +75,13 @@ export function DashboardMobileDrawer({
   onOpenChange,
   selectedCategory,
   onCategoryChange,
+  selectedTemplateCategory,
+  onTemplateCategoryChange,
 }: DashboardMobileDrawerProps) {
   const location = useLocation();
   const isActive = (href: string) => location.pathname === href;
-  const showCategories = location.pathname === "/my-boards";
+  const isOnMyBoards = location.pathname === "/my-boards";
+  const isOnTemplates = location.pathname === "/templates";
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -118,8 +147,8 @@ export function DashboardMobileDrawer({
             </div>
           </div>
 
-          {/* Category Filters */}
-          {showCategories && (
+          {/* Board Category Filters (My Boards) */}
+          {isOnMyBoards && (
             <div>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">
@@ -137,7 +166,7 @@ export function DashboardMobileDrawer({
                 )}
               </div>
               <div className="grid grid-cols-2 gap-2">
-                {categories.map((category) => (
+                {boardCategories.map((category) => (
                   <Button
                     key={category.id}
                     variant={selectedCategory === category.id ? "default" : "outline"}
@@ -148,6 +177,65 @@ export function DashboardMobileDrawer({
                     onClick={() =>
                       onCategoryChange?.(
                         selectedCategory === category.id ? null : category.id
+                      )
+                    }
+                  >
+                    <div
+                      className={cn(
+                        "flex h-5 w-5 items-center justify-center rounded",
+                        category.color
+                      )}
+                    >
+                      <category.icon className="h-3 w-3 text-white" />
+                    </div>
+                    {category.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Template Category Filters */}
+          {isOnTemplates && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Filter Templates
+                </p>
+                {selectedTemplateCategory && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => onTemplateCategoryChange?.(null)}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant={!selectedTemplateCategory ? "default" : "outline"}
+                  className={cn(
+                    "justify-start gap-2 col-span-2",
+                    !selectedTemplateCategory && "bg-primary"
+                  )}
+                  onClick={() => onTemplateCategoryChange?.(null)}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                  All Categories
+                </Button>
+                {templateCategories.map((category) => (
+                  <Button
+                    key={category.id}
+                    variant={selectedTemplateCategory === category.id ? "default" : "outline"}
+                    className={cn(
+                      "justify-start gap-2",
+                      selectedTemplateCategory === category.id && "bg-primary"
+                    )}
+                    onClick={() =>
+                      onTemplateCategoryChange?.(
+                        selectedTemplateCategory === category.id ? null : category.id
                       )
                     }
                   >
