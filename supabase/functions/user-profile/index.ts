@@ -105,7 +105,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (sessionError || !session) {
-      console.error('Session validation failed:', sessionError);
+      console.error('Session validation failed');
       return new Response(
         JSON.stringify({ error: 'Invalid session' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -131,7 +131,7 @@ serve(async (req) => {
           .single();
 
         if (userError) {
-          console.error('Error fetching user:', userError);
+          console.error('Error fetching user');
           return new Response(
             JSON.stringify({ error: 'Failed to fetch user' }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -148,16 +148,15 @@ serve(async (req) => {
             .maybeSingle();
 
           if (profileError) {
-            console.warn('Error fetching profile (non-blocking):', profileError);
-            // Continue without profile data
+            // Continue without profile data - non-blocking error
           } else {
             profile = profileData;
           }
-        } catch (err) {
-          console.warn('Profile fetch exception (non-blocking):', err);
+        } catch {
+          // Profile fetch exception - non-blocking
         }
 
-        console.log('Data fetched for user:', userId);
+        console.log('Profile data fetched successfully');
 
         return new Response(
           JSON.stringify({
@@ -209,14 +208,14 @@ serve(async (req) => {
         }
 
         if (result.error) {
-          console.error('Error updating profile:', result.error);
+          console.error('Error updating profile');
           return new Response(
             JSON.stringify({ error: 'Failed to update profile' }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        console.log('Profile updated for user:', userId);
+        console.log('Profile updated successfully');
 
         return new Response(
           JSON.stringify({ profile: result.data }),
@@ -234,9 +233,9 @@ serve(async (req) => {
           );
         }
 
-        if (new_password.length < 6) {
+        if (new_password.length < 8) {
           return new Response(
-            JSON.stringify({ error: 'New password must be at least 6 characters' }),
+            JSON.stringify({ error: 'New password must be at least 8 characters' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
@@ -249,7 +248,7 @@ serve(async (req) => {
           .single();
 
         if (userError || !user) {
-          console.error('Error fetching user for password change:', userError);
+          console.error('Error fetching user for password change');
           return new Response(
             JSON.stringify({ error: 'Failed to verify current password' }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -275,14 +274,14 @@ serve(async (req) => {
           .eq('id', userId);
 
         if (updateError) {
-          console.error('Error updating password:', updateError);
+          console.error('Error updating password');
           return new Response(
             JSON.stringify({ error: 'Failed to update password' }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        console.log('Password changed for user:', userId);
+        console.log('Password changed successfully');
 
         return new Response(
           JSON.stringify({ success: true, message: 'Password updated successfully' }),
@@ -308,7 +307,7 @@ serve(async (req) => {
           .single();
 
         if (userError || !user) {
-          console.error('Error fetching user for deletion:', userError);
+          console.error('Error fetching user for deletion');
           return new Response(
             JSON.stringify({ error: 'Failed to verify password' }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -333,7 +332,7 @@ serve(async (req) => {
           .eq('user_id', userId);
         
         if (boardsError) {
-          console.error('Error deleting vision boards:', boardsError);
+          console.error('Error deleting vision boards');
         }
 
         // 2. Delete profile
@@ -343,7 +342,7 @@ serve(async (req) => {
           .eq('user_id', userId);
         
         if (profileError) {
-          console.error('Error deleting profile:', profileError);
+          console.error('Error deleting profile');
         }
 
         // 3. Delete all sessions
@@ -353,7 +352,7 @@ serve(async (req) => {
           .eq('user_id', userId);
         
         if (sessionsError) {
-          console.error('Error deleting sessions:', sessionsError);
+          console.error('Error deleting sessions');
         }
 
         // 4. Delete user
@@ -363,14 +362,14 @@ serve(async (req) => {
           .eq('id', userId);
 
         if (deleteUserError) {
-          console.error('Error deleting user:', deleteUserError);
+          console.error('Error deleting user');
           return new Response(
             JSON.stringify({ error: 'Failed to delete account' }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        console.log('Account deleted for user:', userId);
+        console.log('Account deleted successfully');
 
         return new Response(
           JSON.stringify({ success: true, message: 'Account deleted successfully' }),
