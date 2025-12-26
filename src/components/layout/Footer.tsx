@@ -104,12 +104,9 @@ export function Footer() {
         </div>
 
         {/* Bottom Bar */}
-        <div className="mt-12 pt-8 border-t border-border flex flex-col sm:flex-row justify-between items-center gap-4">
-          <p className="text-sm text-muted-foreground">
+        <div className="mt-12 pt-8 border-t border-border">
+          <p className="text-sm text-muted-foreground text-center">
             © {new Date().getFullYear()} VisionBoard. All rights reserved.
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Your vision board is created securely and is not shared with anyone.
           </p>
         </div>
       </div>
