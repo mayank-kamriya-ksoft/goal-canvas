@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Canvas as FabricCanvas, Rect, Textbox, FabricImage, Shadow } from "fabric";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { VisionBoardTemplate } from "@/types/templates";
 import {
@@ -173,6 +172,28 @@ function sanitizeCanvasData(data: unknown): Record<string, unknown> {
   }
   
   return sanitized;
+}
+
+// Helper to make authenticated API calls with cookies
+async function boardsApiCall(action: string, data: Record<string, any> = {}) {
+  const response = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/vision-boards`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+      credentials: 'include',
+      body: JSON.stringify({ action, ...data }),
+    }
+  );
+  
+  const result = await response.json();
+  if (!response.ok) {
+    throw { message: result.error, status: response.status };
+  }
+  return result;
 }
 
 export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialCategory = "personal", externalTitle, onTitleChange, externalCategory, onCategoryChange }: VisionCanvasProps) {
@@ -395,17 +416,15 @@ export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialC
 
   // Load saved board if boardId is provided
   useEffect(() => {
-    if (!canvas || !boardId || !session?.token || boardLoadedRef.current === boardId) return;
+    if (!canvas || !boardId || !session || boardLoadedRef.current === boardId) return;
     
     const loadBoard = async () => {
       try {
         console.log("Loading board:", boardId);
-        const { data, error } = await supabase.functions.invoke("vision-boards", {
-          body: { action: "get", token: session.token, boardId },
-        });
+        const data = await boardsApiCall("get", { boardId });
 
-        if (error || !data?.board) {
-          console.error("Failed to load board data:", error);
+        if (!data?.board) {
+          console.error("Failed to load board data");
           toast.error("Failed to load board");
           return;
         }
@@ -435,7 +454,11 @@ export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialC
         } else {
           console.log("No board_data found or invalid format");
         }
-      } catch (err) {
+      } catch (err: any) {
+        if (err.status === 401) {
+          toast.error("Session expired. Please log in again.");
+          return;
+        }
         console.error("Failed to load board:", err);
         toast.error("Failed to load board");
       }
@@ -1344,7 +1367,7 @@ export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialC
     if (!canvas) return;
 
     // If user is not logged in, redirect to auth (only for manual saves)
-    if (!user || !session?.token) {
+    if (!user || !session) {
       if (!isAutoSave) {
         toast.error("Please log in to save your board");
         navigate("/auth");
@@ -1361,18 +1384,13 @@ export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialC
 
       if (currentBoardId) {
         // Update existing board
-        const { error } = await supabase.functions.invoke("vision-boards", {
-          body: {
-            action: "update",
-            token: session.token,
-            boardId: currentBoardId,
-            title: boardTitle,
-            board_data: canvasData,
-            category,
-          },
+        await boardsApiCall("update", {
+          boardId: currentBoardId,
+          title: boardTitle,
+          boardData: canvasData,
+          category,
         });
 
-        if (error) throw error;
         setHasUnsavedChanges(false);
         setLastSavedAt(new Date());
         if (!isAutoSave) {
@@ -1380,17 +1398,12 @@ export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialC
         }
       } else {
         // Create new board
-        const { data, error } = await supabase.functions.invoke("vision-boards", {
-          body: {
-            action: "create",
-            token: session.token,
-            title: boardTitle || template?.title || "My Vision Board",
-            board_data: canvasData,
-            category,
-          },
+        const data = await boardsApiCall("create", {
+          title: boardTitle || template?.title || "My Vision Board",
+          boardData: canvasData,
+          category,
         });
 
-        if (error) throw error;
         setCurrentBoardId(data.board.id);
         setHasUnsavedChanges(false);
         setLastSavedAt(new Date());
@@ -1406,11 +1419,11 @@ export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialC
     } finally {
       setIsSaving(false);
     }
-  }, [canvas, user, session, currentBoardId, boardTitle, template, initialCategory, navigate]);
+  }, [canvas, user, session, currentBoardId, boardTitle, template, initialCategory, navigate, externalCategory]);
 
   // Auto-save every 30 seconds when there are unsaved changes
   useEffect(() => {
-    if (!user || !session?.token) return;
+    if (!user || !session) return;
     
     autoSaveIntervalRef.current = setInterval(() => {
       if (hasUnsavedChanges && !isSaving) {

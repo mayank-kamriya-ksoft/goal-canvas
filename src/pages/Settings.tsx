@@ -5,7 +5,6 @@ import { SEO } from "@/components/seo/SEO";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import {
   User,
   Mail,
@@ -26,7 +25,6 @@ import { toast } from "sonner";
 import { z } from "zod";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -62,6 +60,49 @@ interface Profile {
 interface UserInfo {
   email: string;
   created_at: string;
+}
+
+// Helper to make authenticated API calls with cookies
+async function profileApiCall(action: string, data: Record<string, any> = {}) {
+  const response = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/user-profile`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+      credentials: 'include',
+      body: JSON.stringify({ action, ...data }),
+    }
+  );
+  
+  const result = await response.json();
+  if (!response.ok) {
+    throw { message: result.error, status: response.status };
+  }
+  return result;
+}
+
+// Helper for avatar storage API calls with FormData
+async function avatarApiCall(formData: FormData) {
+  const response = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/avatar-storage`,
+    {
+      method: 'POST',
+      headers: {
+        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+      credentials: 'include',
+      body: formData,
+    }
+  );
+  
+  const result = await response.json();
+  if (!response.ok) {
+    throw { message: result.error, status: response.status };
+  }
+  return result;
 }
 
 export default function Settings() {
@@ -104,23 +145,10 @@ export default function Settings() {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!session?.token) return;
+      if (!session) return;
 
       try {
-        const { data, error } = await supabase.functions.invoke("user-profile", {
-          body: { action: "get", token: session.token },
-        });
-
-        if (error) {
-          const status = (error as any)?.context?.status;
-          if (status === 401) {
-            toast.error("Your session expired. Please log in again.");
-            await logout();
-            navigate("/auth");
-            return;
-          }
-          throw error;
-        }
+        const data = await profileApiCall("get");
 
         setProfile(data.profile);
         setUserInfo(data.user);
@@ -129,7 +157,13 @@ export default function Settings() {
         setAvatarUrl(data.profile?.avatar_url || null);
         setThemePreference(data.profile?.theme_preference || "system");
         setEmailNotifications(data.profile?.email_notifications ?? true);
-      } catch (err) {
+      } catch (err: any) {
+        if (err.status === 401) {
+          toast.error("Your session expired. Please log in again.");
+          await logout();
+          navigate("/auth");
+          return;
+        }
         console.error("Failed to fetch profile:", err);
         toast.error("Failed to load profile");
       } finally {
@@ -137,7 +171,7 @@ export default function Settings() {
       }
     };
 
-    if (session?.token) {
+    if (session) {
       fetchProfile();
     }
   }, [session, logout, navigate]);
@@ -156,26 +190,18 @@ export default function Settings() {
       return;
     }
 
-    if (!session?.token) {
+    if (!session) {
       toast.error("Please log in to upload an avatar");
       return;
     }
 
     setIsUploadingAvatar(true);
     try {
-      // Use the secure avatar-storage Edge Function
       const formData = new FormData();
-      formData.append('token', session.token);
       formData.append('action', 'upload');
       formData.append('file', file);
 
-      const { data, error } = await supabase.functions.invoke("avatar-storage", {
-        body: formData,
-      });
-
-      if (error) {
-        throw error;
-      }
+      const data = await avatarApiCall(formData);
 
       if (data.error) {
         toast.error(data.error);
@@ -186,17 +212,7 @@ export default function Settings() {
       setAvatarUrl(newAvatarUrl);
 
       // Update profile with new avatar URL
-      const { error: updateError } = await supabase.functions.invoke("user-profile", {
-        body: {
-          action: "update",
-          token: session.token,
-          avatar_url: newAvatarUrl,
-        },
-      });
-
-      if (updateError) {
-        throw updateError;
-      }
+      await profileApiCall("update", { avatar_url: newAvatarUrl });
 
       toast.success("Avatar uploaded successfully");
     } catch (err) {
@@ -211,7 +227,7 @@ export default function Settings() {
   };
 
   const handleRemoveAvatar = async () => {
-    if (!avatarUrl || !session?.token) return;
+    if (!avatarUrl || !session) return;
 
     setIsRemovingAvatar(true);
     try {
@@ -221,26 +237,13 @@ export default function Settings() {
         const filePath = urlParts[1];
         
         const formData = new FormData();
-        formData.append('token', session.token);
         formData.append('action', 'delete');
         formData.append('path', filePath);
 
-        await supabase.functions.invoke("avatar-storage", {
-          body: formData,
-        });
+        await avatarApiCall(formData);
       }
 
-      const { error: updateError } = await supabase.functions.invoke("user-profile", {
-        body: {
-          action: "update",
-          token: session.token,
-          avatar_url: null,
-        },
-      });
-
-      if (updateError) {
-        throw updateError;
-      }
+      await profileApiCall("update", { avatar_url: null });
 
       setAvatarUrl(null);
       toast.success("Avatar removed successfully");
@@ -262,36 +265,27 @@ export default function Settings() {
       }
     }
 
-    if (!session?.token) return;
+    if (!session) return;
 
     setIsSaving(true);
     try {
-      const { data, error } = await supabase.functions.invoke("user-profile", {
-        body: {
-          action: "update",
-          token: session.token,
-          display_name: displayName,
-          bio,
-          avatar_url: avatarUrl,
-          theme_preference: themePreference,
-          email_notifications: emailNotifications,
-        },
+      const data = await profileApiCall("update", {
+        display_name: displayName,
+        bio,
+        avatar_url: avatarUrl,
+        theme_preference: themePreference,
+        email_notifications: emailNotifications,
       });
-
-      if (error) {
-        const status = (error as any)?.context?.status;
-        if (status === 401) {
-          toast.error("Your session expired. Please log in again.");
-          await logout();
-          navigate("/auth");
-          return;
-        }
-        throw error;
-      }
 
       setProfile(data.profile);
       toast.success("Settings saved successfully");
-    } catch (err) {
+    } catch (err: any) {
+      if (err.status === 401) {
+        toast.error("Your session expired. Please log in again.");
+        await logout();
+        navigate("/auth");
+        return;
+      }
       console.error("Failed to save profile:", err);
       toast.error("Failed to save settings");
     } finally {
@@ -313,29 +307,14 @@ export default function Settings() {
       }
     }
 
-    if (!session?.token) return;
+    if (!session) return;
 
     setIsChangingPassword(true);
     try {
-      const { data, error } = await supabase.functions.invoke("user-profile", {
-        body: {
-          action: "change-password",
-          token: session.token,
-          current_password: currentPassword,
-          new_password: newPassword,
-        },
+      const data = await profileApiCall("change-password", {
+        current_password: currentPassword,
+        new_password: newPassword,
       });
-
-      if (error) {
-        const status = (error as any)?.context?.status;
-        if (status === 401) {
-          toast.error("Your session expired. Please log in again.");
-          await logout();
-          navigate("/auth");
-          return;
-        }
-        throw error;
-      }
 
       if (data.error) {
         toast.error(data.error);
@@ -347,6 +326,12 @@ export default function Settings() {
       setNewPassword("");
       setConfirmPassword("");
     } catch (err: any) {
+      if (err.status === 401) {
+        toast.error("Your session expired. Please log in again.");
+        await logout();
+        navigate("/auth");
+        return;
+      }
       console.error("Failed to change password:", err);
       toast.error(err?.message || "Failed to change password");
     } finally {
@@ -360,28 +345,19 @@ export default function Settings() {
       return;
     }
 
-    if (!session?.token) return;
+    if (!session) return;
 
     setIsDeletingAccount(true);
     try {
-      const { data, error } = await supabase.functions.invoke("user-profile", {
-        body: {
-          action: "delete-account",
-          token: session.token,
-          password: deletePassword,
-        },
+      const data = await profileApiCall("delete-account", {
+        password: deletePassword,
       });
-
-      if (error) {
-        throw error;
-      }
 
       if (data.error) {
         toast.error(data.error);
         return;
       }
 
-      localStorage.removeItem("session_token");
       toast.success("Your account has been deleted");
       navigate("/");
     } catch (err: any) {
@@ -834,7 +810,7 @@ export default function Settings() {
                       </button>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Minimum 6 characters
+                      Minimum 8 characters
                     </p>
                   </div>
 
