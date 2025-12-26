@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { Header } from "@/components/layout/Header";
-import { Footer } from "@/components/layout/Footer";
+import { DashboardFooter } from "./DashboardFooter";
 import { DashboardSidebar } from "./DashboardSidebar";
 import { DashboardMobileDrawer } from "./DashboardMobileDrawer";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
@@ -40,7 +40,7 @@ export function DashboardLayout({
           onTemplateCategoryChange={onTemplateCategoryChange}
         />
         <main className="flex-1">{children}</main>
-        {!hideFooter && <Footer />}
+        {!hideFooter && <DashboardFooter />}
       </div>
     );
   }
@@ -57,7 +57,7 @@ export function DashboardLayout({
         />
         <SidebarInset className="flex flex-col flex-1 min-w-0 overflow-auto">
           <main className="flex-1 min-w-0">{children}</main>
-          {!hideFooter && <Footer />}
+          {!hideFooter && <DashboardFooter />}
         </SidebarInset>
       </div>
     </SidebarProvider>
