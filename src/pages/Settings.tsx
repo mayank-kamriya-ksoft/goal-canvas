@@ -43,7 +43,7 @@ const profileSchema = z.object({
 
 const passwordSchema = z.object({
   current_password: z.string().min(1, "Current password is required"),
-  new_password: z.string().min(6, "New password must be at least 6 characters"),
+  new_password: z.string().min(8, "New password must be at least 8 characters"),
   confirm_password: z.string().min(1, "Please confirm your new password"),
 }).refine((data) => data.new_password === data.confirm_password, {
   message: "Passwords don't match",
@@ -156,48 +156,46 @@ export default function Settings() {
       return;
     }
 
-    if (!user?.id) {
+    if (!session?.token) {
       toast.error("Please log in to upload an avatar");
       return;
     }
 
     setIsUploadingAvatar(true);
     try {
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-      const filePath = `${user.id}/${fileName}`;
+      // Use the secure avatar-storage Edge Function
+      const formData = new FormData();
+      formData.append('token', session.token);
+      formData.append('action', 'upload');
+      formData.append('file', file);
 
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(filePath, file, {
-          cacheControl: "3600",
-          upsert: true,
-        });
+      const { data, error } = await supabase.functions.invoke("avatar-storage", {
+        body: formData,
+      });
 
-      if (uploadError) {
-        console.error("Upload error:", uploadError);
-        throw uploadError;
+      if (error) {
+        throw error;
       }
 
-      const { data: urlData } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(filePath);
+      if (data.error) {
+        toast.error(data.error);
+        return;
+      }
 
-      const newAvatarUrl = urlData.publicUrl;
+      const newAvatarUrl = data.url;
       setAvatarUrl(newAvatarUrl);
 
-      if (session?.token) {
-        const { error: updateError } = await supabase.functions.invoke("user-profile", {
-          body: {
-            action: "update",
-            token: session.token,
-            avatar_url: newAvatarUrl,
-          },
-        });
+      // Update profile with new avatar URL
+      const { error: updateError } = await supabase.functions.invoke("user-profile", {
+        body: {
+          action: "update",
+          token: session.token,
+          avatar_url: newAvatarUrl,
+        },
+      });
 
-        if (updateError) {
-          throw updateError;
-        }
+      if (updateError) {
+        throw updateError;
       }
 
       toast.success("Avatar uploaded successfully");
@@ -213,21 +211,23 @@ export default function Settings() {
   };
 
   const handleRemoveAvatar = async () => {
-    if (!avatarUrl || !user?.id || !session?.token) return;
+    if (!avatarUrl || !session?.token) return;
 
     setIsRemovingAvatar(true);
     try {
+      // Extract file path from URL and delete via Edge Function
       const urlParts = avatarUrl.split("/avatars/");
       if (urlParts.length > 1) {
         const filePath = urlParts[1];
         
-        const { error: deleteError } = await supabase.storage
-          .from("avatars")
-          .remove([filePath]);
+        const formData = new FormData();
+        formData.append('token', session.token);
+        formData.append('action', 'delete');
+        formData.append('path', filePath);
 
-        if (deleteError) {
-          console.error("Delete error:", deleteError);
-        }
+        await supabase.functions.invoke("avatar-storage", {
+          body: formData,
+        });
       }
 
       const { error: updateError } = await supabase.functions.invoke("user-profile", {
