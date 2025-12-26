@@ -63,6 +63,7 @@ export default function CreateBoard() {
   
   const [dbTemplate, setDbTemplate] = useState<VisionBoardTemplate | null>(null);
   const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
+  const [boardTitle, setBoardTitle] = useState("Untitled Board");
   
   // Fetch DB template if templateId is provided
   useEffect(() => {
@@ -76,6 +77,9 @@ export default function CreateBoard() {
       try {
         const template = await getTemplateById(templateId);
         setDbTemplate(template);
+        if (template) {
+          setBoardTitle(template.name);
+        }
       } catch (error) {
         console.error("Failed to load template:", error);
       } finally {
@@ -89,15 +93,23 @@ export default function CreateBoard() {
   // Legacy template support
   const legacyTemplate = useMemo(() => {
     if (!legacyTemplateId) return null;
-    return legacyTemplates.find(t => t.id === parseInt(legacyTemplateId)) || null;
+    const found = legacyTemplates.find(t => t.id === parseInt(legacyTemplateId)) || null;
+    if (found) {
+      setBoardTitle(found.title);
+    }
+    return found;
   }, [legacyTemplateId]);
 
   // Determine which template to use
   const activeTemplate = dbTemplate || legacyTemplate;
   const templateCategory = dbTemplate?.category || legacyTemplate?.category || "personal";
 
+  const handleTitleChange = (newTitle: string) => {
+    setBoardTitle(newTitle);
+  };
+
   return (
-    <Layout hideFooter useEditorHeader>
+    <Layout hideFooter useEditorHeader boardTitle={boardTitle} onTitleChange={handleTitleChange}>
       <SEO
         title="Create Your Free Vision Board Online"
         description="Design your personalized digital vision board with our free drag-and-drop tool. Add images, goals, and inspirational text. Download as PNG, JPG, or PDF."
