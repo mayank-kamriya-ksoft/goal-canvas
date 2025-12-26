@@ -58,7 +58,7 @@ export default function Auth() {
         toast.error(result.error);
       } else {
         toast.success(mode === "login" ? "Welcome back!" : "Account created successfully!");
-        navigate("/create");
+        navigate("/my-boards");
       }
     } catch (err) {
       toast.error("An unexpected error occurred");
