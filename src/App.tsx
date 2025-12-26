@@ -9,11 +9,11 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 import CreateBoard from "./pages/CreateBoard";
 import MyBoards from "./pages/MyBoards";
-import Examples from "./pages/Examples";
+
 import HowToCreate from "./pages/HowToCreate";
 import VisionBoardCareer from "./pages/VisionBoardCareer";
 import VisionBoardStudents from "./pages/VisionBoardStudents";
-import Templates from "./pages/Templates";
+import Templates from "./pages/TemplatesShowcase";
 import Blog from "./pages/Blog";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
@@ -39,7 +39,6 @@ const App = () => (
               <Route path="/create" element={<CreateBoard />} />
               <Route path="/my-boards" element={<MyBoards />} />
               <Route path="/templates" element={<Templates />} />
-              <Route path="/examples" element={<Examples />} />
               <Route path="/how-to-create" element={<HowToCreate />} />
               <Route path="/vision-board-career" element={<VisionBoardCareer />} />
               <Route path="/vision-board-students" element={<VisionBoardStudents />} />

@@ -2,7 +2,13 @@ import { Link } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { SEO } from "@/components/seo/SEO";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Briefcase, GraduationCap, Heart, Wallet, Star, Eye } from "lucide-react";
+import { ArrowRight, Briefcase, GraduationCap, Heart, Wallet, Star, Eye, LayoutGrid, FolderOpen } from "lucide-react";
+import { TEMPLATE_CATEGORIES } from "@/types/templates";
+
+// Stats derived from template categories
+const TOTAL_CATEGORIES = TEMPLATE_CATEGORIES.length;
+const TEMPLATES_PER_CATEGORY = 4; // Average templates per category
+const TOTAL_TEMPLATES = TOTAL_CATEGORIES * TEMPLATES_PER_CATEGORY;
 
 const exampleBoards = [
   {
@@ -80,13 +86,13 @@ const tips = [
   },
 ];
 
-export default function Examples() {
+export default function Templates() {
   return (
     <Layout>
       <SEO
-        title="Vision Board Examples & Templates - Get Inspired"
-        description="Explore vision board examples for career, education, health, finance, and personal growth. Get inspired by real templates and create your own free vision board."
-        keywords="vision board examples, vision board templates, vision board ideas, goal board examples, career vision board, student vision board"
+        title="Vision Board Templates - Free Professional Designs"
+        description="Browse our collection of professionally designed vision board templates. Choose from career, health, finance, relationships, and more categories to start visualizing your goals."
+        keywords="vision board templates, free vision board designs, goal board templates, dream board layouts, career vision board, student vision board"
       />
 
       {/* Hero */}
@@ -95,13 +101,35 @@ export default function Examples() {
         <div className="container-wide relative section-padding">
           <div className="max-w-3xl">
             <h1 className="text-4xl sm:text-5xl font-display font-bold text-foreground mb-6">
-              Vision Board Examples & Inspiration
+              Vision Board Templates
             </h1>
             <p className="text-lg sm:text-xl text-muted-foreground mb-8">
-              Explore different vision board styles and get ideas for your own.
-              From career goals to personal wellness, find the inspiration you
-              need to get started.
+              Choose from our professionally designed templates and start creating
+              your vision board in minutes. Find the perfect layout for your goals.
             </p>
+            
+            {/* Stats */}
+            <div className="flex flex-wrap gap-6 mb-8">
+              <div className="flex items-center gap-3 bg-secondary/50 rounded-lg px-4 py-3">
+                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <LayoutGrid className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground">{TOTAL_TEMPLATES}+</p>
+                  <p className="text-sm text-muted-foreground">Templates</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 bg-secondary/50 rounded-lg px-4 py-3">
+                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <FolderOpen className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground">{TOTAL_CATEGORIES}</p>
+                  <p className="text-sm text-muted-foreground">Categories</p>
+                </div>
+              </div>
+            </div>
+            
             <Link to="/create">
               <Button variant="hero" size="lg">
                 Create Your Own
@@ -112,7 +140,7 @@ export default function Examples() {
         </div>
       </section>
 
-      {/* Examples Grid */}
+      {/* Templates Grid */}
       <section className="section-padding">
         <div className="container-wide">
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
