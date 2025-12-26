@@ -183,7 +183,7 @@ serve(async (req) => {
     // Check rate limit before processing (use IP only for signup to prevent enumeration)
     const rateLimit = await checkRateLimit(supabase, clientIP, 'signup');
     if (!rateLimit.allowed) {
-      console.log('Signup rate limit exceeded for IP:', clientIP);
+      console.log('Signup rate limit exceeded');
       return new Response(
         JSON.stringify({ 
           error: 'Too many signup attempts. Please try again later.',
@@ -256,7 +256,7 @@ serve(async (req) => {
       .single();
 
     if (insertError) {
-      console.error('Error creating user:', insertError);
+      console.error('Error creating user');
       return new Response(
         JSON.stringify({ error: 'Failed to create account' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -276,14 +276,14 @@ serve(async (req) => {
       });
 
     if (sessionError) {
-      console.error('Error creating session:', sessionError);
+      console.error('Error creating session');
       return new Response(
         JSON.stringify({ error: 'Account created but failed to create session' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('User created successfully:', newUser.email);
+    console.log('User created successfully');
 
     return new Response(
       JSON.stringify({

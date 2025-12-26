@@ -9,11 +9,8 @@ const corsHeaders = {
 // Helper to validate session
 async function validateSession(supabase: any, token: string) {
   if (!token) {
-    console.log('No token provided');
     return null;
   }
-
-  console.log('Validating token:', token.substring(0, 10) + '...');
 
   const { data: session, error } = await supabase
     .from('sessions')
@@ -22,22 +19,18 @@ async function validateSession(supabase: any, token: string) {
     .maybeSingle();
 
   if (error) {
-    console.error('Session query error:', error);
+    console.error('Session validation error');
     return null;
   }
-
-  console.log('Session found:', session ? 'yes' : 'no');
 
   if (!session) {
     return null;
   }
 
   if (new Date(session.expires_at) < new Date()) {
-    console.log('Session expired:', session.expires_at);
     return null;
   }
 
-  console.log('Session valid for user:', session.user_id);
   return session;
 }
 
@@ -172,7 +165,6 @@ serve(async (req) => {
 
       case 'duplicate': {
         const { boardId } = data;
-        console.log('Duplicating board:', boardId);
 
         // First, get the original board
         const { data: originalBoard, error: fetchError } = await supabase
@@ -204,7 +196,7 @@ serve(async (req) => {
 
         if (insertError) throw insertError;
 
-        console.log('Board duplicated successfully:', newBoard.id);
+        console.log('Board duplicated successfully');
 
         return new Response(
           JSON.stringify({ board: newBoard }),

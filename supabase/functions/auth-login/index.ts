@@ -210,7 +210,7 @@ serve(async (req) => {
     // Check rate limit before processing
     const rateLimit = await checkRateLimit(supabase, rateLimitIdentifier, 'login');
     if (!rateLimit.allowed) {
-      console.log('Rate limit exceeded for:', rateLimitIdentifier);
+      console.log('Rate limit exceeded for login attempt');
       return new Response(
         JSON.stringify({ 
           error: 'Too many login attempts. Please try again later.',
@@ -243,7 +243,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (findError || !user) {
-      console.log('User not found:', email);
+      console.log('Login failed: user not found');
       await recordFailedAttempt(supabase, rateLimitIdentifier, 'login');
       return new Response(
         JSON.stringify({ error: 'Invalid email or password' }),
@@ -254,7 +254,7 @@ serve(async (req) => {
     // Verify password
     const isValid = await verifyPassword(password, user.password_hash);
     if (!isValid) {
-      console.log('Invalid password for user:', email);
+      console.log('Login failed: invalid password');
       await recordFailedAttempt(supabase, rateLimitIdentifier, 'login');
       return new Response(
         JSON.stringify({ error: 'Invalid email or password' }),
@@ -283,14 +283,14 @@ serve(async (req) => {
       });
 
     if (sessionError) {
-      console.error('Error creating session:', sessionError);
+      console.error('Error creating session');
       return new Response(
         JSON.stringify({ error: 'Failed to create session' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('User logged in successfully:', user.email);
+    console.log('User logged in successfully');
 
     return new Response(
       JSON.stringify({
