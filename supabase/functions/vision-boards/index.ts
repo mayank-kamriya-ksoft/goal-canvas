@@ -1,9 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Get the app origin for cookie domain
+const APP_ORIGIN = Deno.env.get('APP_ORIGIN') || '*';
+
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': APP_ORIGIN,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Credentials': 'true',
 };
 
 // Validation constants
@@ -11,6 +15,21 @@ const MAX_BOARD_DATA_SIZE = 10 * 1024 * 1024; // 10MB max for board_data JSON
 const MAX_TITLE_LENGTH = 200;
 const MAX_CATEGORY_LENGTH = 50;
 const MAX_BOARDS_PER_USER = 100;
+
+// Parse session token from cookies
+function getSessionTokenFromCookies(req: Request): string | null {
+  const cookieHeader = req.headers.get('cookie');
+  if (!cookieHeader) return null;
+  
+  const cookies = cookieHeader.split(';');
+  for (const cookie of cookies) {
+    const [name, value] = cookie.trim().split('=');
+    if (name === 'session_token') {
+      return value;
+    }
+  }
+  return null;
+}
 
 // Helper to validate board_data size and structure
 function validateBoardData(boardData: any): { valid: boolean; error?: string } {
@@ -97,13 +116,16 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body = await req.json();
-    const { action, token, ...data } = body;
+    const { action, token: bodyToken, ...data } = body;
 
-    // Validate session for all operations
+    // Try to get token from cookies first, then fall back to body (for backward compatibility)
+    const token = getSessionTokenFromCookies(req) || bodyToken;
+
+    // Validate session
     const session = await validateSession(supabase, token);
     if (!session) {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized - Invalid or expired session' }),
+        JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -118,7 +140,13 @@ serve(async (req) => {
           .eq('user_id', userId)
           .order('updated_at', { ascending: false });
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error fetching boards');
+          return new Response(
+            JSON.stringify({ error: 'Failed to fetch boards' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
 
         return new Response(
           JSON.stringify({ boards }),
@@ -129,15 +157,21 @@ serve(async (req) => {
       case 'get': {
         const { boardId } = data;
         
+        if (!boardId) {
+          return new Response(
+            JSON.stringify({ error: 'Board ID is required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
         const { data: board, error } = await supabase
           .from('vision_boards')
           .select('*')
           .eq('id', boardId)
           .eq('user_id', userId)
-          .maybeSingle();
+          .single();
 
-        if (error) throw error;
-        if (!board) {
+        if (error || !board) {
           return new Response(
             JSON.stringify({ error: 'Board not found' }),
             { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -151,42 +185,42 @@ serve(async (req) => {
       }
 
       case 'create': {
-        const { title, board_data, category } = data;
+        const { title, category, boardData } = data;
 
-        // Validate title length
-        if (title && title.length > MAX_TITLE_LENGTH) {
+        // Validate title
+        const boardTitle = (title || 'Untitled Board').trim();
+        if (boardTitle.length > MAX_TITLE_LENGTH) {
           return new Response(
-            JSON.stringify({ error: `Title must be ${MAX_TITLE_LENGTH} characters or less` }),
+            JSON.stringify({ error: `Title must be less than ${MAX_TITLE_LENGTH} characters` }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        // Validate category length
-        if (category && category.length > MAX_CATEGORY_LENGTH) {
+        // Validate category
+        const boardCategory = (category || 'personal').trim();
+        if (boardCategory.length > MAX_CATEGORY_LENGTH) {
           return new Response(
-            JSON.stringify({ error: `Category must be ${MAX_CATEGORY_LENGTH} characters or less` }),
+            JSON.stringify({ error: `Category must be less than ${MAX_CATEGORY_LENGTH} characters` }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        // Validate board_data size and structure
-        const boardValidation = validateBoardData(board_data);
-        if (!boardValidation.valid) {
+        // Validate board data
+        const validation = validateBoardData(boardData);
+        if (!validation.valid) {
           return new Response(
-            JSON.stringify({ error: boardValidation.error }),
+            JSON.stringify({ error: validation.error }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        // Check user's board count limit
-        const { count, error: countError } = await supabase
+        // Check user's board count
+        const { count } = await supabase
           .from('vision_boards')
-          .select('id', { count: 'exact', head: true })
+          .select('*', { count: 'exact', head: true })
           .eq('user_id', userId);
 
-        if (countError) throw countError;
-
-        if (count !== null && count >= MAX_BOARDS_PER_USER) {
+        if (count && count >= MAX_BOARDS_PER_USER) {
           return new Response(
             JSON.stringify({ error: `Maximum of ${MAX_BOARDS_PER_USER} boards allowed per user` }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -197,14 +231,22 @@ serve(async (req) => {
           .from('vision_boards')
           .insert({
             user_id: userId,
-            title: (title || 'Untitled Board').slice(0, MAX_TITLE_LENGTH),
-            board_data: board_data || {},
-            category: (category || 'personal').slice(0, MAX_CATEGORY_LENGTH),
+            title: boardTitle,
+            category: boardCategory,
+            board_data: boardData || {},
           })
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error creating board');
+          return new Response(
+            JSON.stringify({ error: 'Failed to create board' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log('Board created successfully');
 
         return new Response(
           JSON.stringify({ board }),
@@ -213,39 +255,64 @@ serve(async (req) => {
       }
 
       case 'update': {
-        const { boardId, title, board_data, category } = data;
+        const { boardId, title, category, boardData } = data;
 
-        // Validate title length
-        if (title !== undefined && title.length > MAX_TITLE_LENGTH) {
+        if (!boardId) {
           return new Response(
-            JSON.stringify({ error: `Title must be ${MAX_TITLE_LENGTH} characters or less` }),
+            JSON.stringify({ error: 'Board ID is required' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        // Validate category length
-        if (category !== undefined && category.length > MAX_CATEGORY_LENGTH) {
+        // Verify board ownership
+        const { data: existingBoard, error: fetchError } = await supabase
+          .from('vision_boards')
+          .select('id')
+          .eq('id', boardId)
+          .eq('user_id', userId)
+          .single();
+
+        if (fetchError || !existingBoard) {
           return new Response(
-            JSON.stringify({ error: `Category must be ${MAX_CATEGORY_LENGTH} characters or less` }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            JSON.stringify({ error: 'Board not found' }),
+            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        // Validate board_data size and structure
-        if (board_data !== undefined) {
-          const boardValidation = validateBoardData(board_data);
-          if (!boardValidation.valid) {
+        const updateData: Record<string, any> = { updated_at: new Date().toISOString() };
+
+        if (title !== undefined) {
+          const boardTitle = title.trim();
+          if (boardTitle.length > MAX_TITLE_LENGTH) {
             return new Response(
-              JSON.stringify({ error: boardValidation.error }),
+              JSON.stringify({ error: `Title must be less than ${MAX_TITLE_LENGTH} characters` }),
               { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
           }
+          updateData.title = boardTitle;
         }
 
-        const updateData: any = {};
-        if (title !== undefined) updateData.title = title.slice(0, MAX_TITLE_LENGTH);
-        if (board_data !== undefined) updateData.board_data = board_data;
-        if (category !== undefined) updateData.category = category.slice(0, MAX_CATEGORY_LENGTH);
+        if (category !== undefined) {
+          const boardCategory = category.trim();
+          if (boardCategory.length > MAX_CATEGORY_LENGTH) {
+            return new Response(
+              JSON.stringify({ error: `Category must be less than ${MAX_CATEGORY_LENGTH} characters` }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          updateData.category = boardCategory;
+        }
+
+        if (boardData !== undefined) {
+          const validation = validateBoardData(boardData);
+          if (!validation.valid) {
+            return new Response(
+              JSON.stringify({ error: validation.error }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          updateData.board_data = boardData;
+        }
 
         const { data: board, error } = await supabase
           .from('vision_boards')
@@ -255,7 +322,15 @@ serve(async (req) => {
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error updating board');
+          return new Response(
+            JSON.stringify({ error: 'Failed to update board' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log('Board updated successfully');
 
         return new Response(
           JSON.stringify({ board }),
@@ -266,13 +341,28 @@ serve(async (req) => {
       case 'delete': {
         const { boardId } = data;
 
+        if (!boardId) {
+          return new Response(
+            JSON.stringify({ error: 'Board ID is required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
         const { error } = await supabase
           .from('vision_boards')
           .delete()
           .eq('id', boardId)
           .eq('user_id', userId);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error deleting board');
+          return new Response(
+            JSON.stringify({ error: 'Failed to delete board' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log('Board deleted successfully');
 
         return new Response(
           JSON.stringify({ success: true }),
@@ -283,35 +373,60 @@ serve(async (req) => {
       case 'duplicate': {
         const { boardId } = data;
 
-        // First, get the original board
+        if (!boardId) {
+          return new Response(
+            JSON.stringify({ error: 'Board ID is required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Check user's board count
+        const { count } = await supabase
+          .from('vision_boards')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', userId);
+
+        if (count && count >= MAX_BOARDS_PER_USER) {
+          return new Response(
+            JSON.stringify({ error: `Maximum of ${MAX_BOARDS_PER_USER} boards allowed per user` }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Get original board
         const { data: originalBoard, error: fetchError } = await supabase
           .from('vision_boards')
           .select('*')
           .eq('id', boardId)
           .eq('user_id', userId)
-          .maybeSingle();
+          .single();
 
-        if (fetchError) throw fetchError;
-        if (!originalBoard) {
+        if (fetchError || !originalBoard) {
           return new Response(
             JSON.stringify({ error: 'Board not found' }),
             { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        // Create a duplicate with a new title
-        const { data: newBoard, error: insertError } = await supabase
+        // Create duplicate
+        const { data: newBoard, error } = await supabase
           .from('vision_boards')
           .insert({
             user_id: userId,
             title: `${originalBoard.title} (Copy)`,
-            board_data: originalBoard.board_data,
             category: originalBoard.category,
+            board_data: originalBoard.board_data,
           })
           .select()
           .single();
 
-        if (insertError) throw insertError;
+        if (error) {
+          console.error('Error duplicating board');
+          return new Response(
+            JSON.stringify({ error: 'Failed to duplicate board' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
 
         console.log('Board duplicated successfully');
 
@@ -327,7 +442,6 @@ serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
     }
-
   } catch (error) {
     console.error('Vision boards error:', error);
     return new Response(

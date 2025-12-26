@@ -4,7 +4,6 @@ import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { SEO } from "@/components/seo/SEO";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import { 
   Plus, 
   Briefcase, 
@@ -44,6 +43,28 @@ const categoryColors: Record<string, string> = {
   personal: "bg-category-personal",
 };
 
+// Helper to make authenticated API calls with cookies
+async function apiCall(action: string, data: Record<string, any> = {}) {
+  const response = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/vision-boards`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      },
+      credentials: 'include',
+      body: JSON.stringify({ action, ...data }),
+    }
+  );
+  
+  const result = await response.json();
+  if (!response.ok) {
+    throw { message: result.error, status: response.status };
+  }
+  return result;
+}
+
 export default function MyBoards() {
   const { user, session, isLoading: authLoading, logout } = useAuth();
   const navigate = useNavigate();
@@ -61,26 +82,18 @@ export default function MyBoards() {
 
   useEffect(() => {
     const fetchBoards = async () => {
-      if (!session?.token) return;
+      if (!session) return;
 
       try {
-        const { data, error } = await supabase.functions.invoke("vision-boards", {
-          body: { action: "list", token: session.token },
-        });
-
-        if (error) {
-          const status = (error as any)?.context?.status;
-          if (status === 401) {
-            toast.error("Your session expired. Please log in again.");
-            await logout();
-            navigate("/auth");
-            return;
-          }
-          throw error;
-        }
-
+        const data = await apiCall("list");
         setBoards(data.boards || []);
-      } catch (err) {
+      } catch (err: any) {
+        if (err.status === 401) {
+          toast.error("Your session expired. Please log in again.");
+          await logout();
+          navigate("/auth");
+          return;
+        }
         console.error("Failed to fetch boards:", err);
         toast.error("Failed to load your boards");
       } finally {
@@ -88,34 +101,26 @@ export default function MyBoards() {
       }
     };
 
-    if (session?.token) {
+    if (session) {
       fetchBoards();
     }
   }, [session, logout, navigate]);
 
   const handleDelete = async (boardId: string) => {
-    if (!session?.token) return;
+    if (!session) return;
 
     setDeletingId(boardId);
     try {
-      const { error } = await supabase.functions.invoke("vision-boards", {
-        body: { action: "delete", token: session.token, boardId },
-      });
-
-      if (error) {
-        const status = (error as any)?.context?.status;
-        if (status === 401) {
-          toast.error("Your session expired. Please log in again.");
-          await logout();
-          navigate("/auth");
-          return;
-        }
-        throw error;
-      }
-
+      await apiCall("delete", { boardId });
       setBoards(boards.filter((b) => b.id !== boardId));
       toast.success("Board deleted");
-    } catch (err) {
+    } catch (err: any) {
+      if (err.status === 401) {
+        toast.error("Your session expired. Please log in again.");
+        await logout();
+        navigate("/auth");
+        return;
+      }
       console.error("Failed to delete board:", err);
       toast.error("Failed to delete board");
     } finally {
@@ -124,26 +129,11 @@ export default function MyBoards() {
   };
 
   const handleDuplicate = async (boardId: string) => {
-    if (!session?.token) return;
+    if (!session) return;
 
     setDuplicatingId(boardId);
     try {
-      const { data, error } = await supabase.functions.invoke("vision-boards", {
-        body: { action: "duplicate", token: session.token, boardId },
-      });
-
-      if (error) {
-        const status = (error as any)?.context?.status;
-        if (status === 401) {
-          toast.error("Your session expired. Please log in again.");
-          await logout();
-          navigate("/auth");
-          return;
-        }
-        throw error;
-      }
-
-      // Add the new board to the list
+      const data = await apiCall("duplicate", { boardId });
       const newBoard = data.board;
       setBoards([{
         id: newBoard.id,
@@ -153,7 +143,13 @@ export default function MyBoards() {
         updated_at: newBoard.updated_at,
       }, ...boards]);
       toast.success("Board duplicated");
-    } catch (err) {
+    } catch (err: any) {
+      if (err.status === 401) {
+        toast.error("Your session expired. Please log in again.");
+        await logout();
+        navigate("/auth");
+        return;
+      }
       console.error("Failed to duplicate board:", err);
       toast.error("Failed to duplicate board");
     } finally {
@@ -169,7 +165,6 @@ export default function MyBoards() {
     });
   };
 
-  // Filter boards by category
   const filteredBoards = useMemo(() => {
     if (!selectedCategory) return boards;
     return boards.filter((board) => board.category === selectedCategory);
@@ -201,7 +196,6 @@ export default function MyBoards() {
 
       <section className="section-padding">
         <div className="container-wide">
-          {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
             <div>
               <h1 className="text-3xl font-display font-bold text-foreground">
@@ -227,7 +221,6 @@ export default function MyBoards() {
             </Link>
           </div>
 
-          {/* Boards Grid */}
           {filteredBoards.length === 0 ? (
             <div className="card-elevated p-12 text-center">
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-secondary flex items-center justify-center">
@@ -259,14 +252,12 @@ export default function MyBoards() {
                     key={board.id}
                     className="card-elevated group overflow-hidden hover:shadow-lg transition-all duration-300"
                   >
-                    {/* Preview placeholder */}
                     <div className="h-40 bg-canvas relative">
                       <div className="absolute inset-0 flex items-center justify-center">
                         <div className={`w-16 h-16 rounded-full ${colorClass} flex items-center justify-center`}>
                           <IconComponent className="h-8 w-8 text-white" />
                         </div>
                       </div>
-                      {/* Hover overlay */}
                       <div className="absolute inset-0 bg-foreground/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 flex-wrap p-2">
                         <Link to={`/create?board=${board.id}`}>
                           <Button variant="secondary" size="sm">
@@ -303,7 +294,6 @@ export default function MyBoards() {
                       </div>
                     </div>
 
-                    {/* Info */}
                     <div className="p-4">
                       <div className="flex items-start justify-between gap-2">
                         <div>

@@ -61,6 +61,120 @@ const PRESET_COLORS = [
   "#FFFFFF", // White
 ];
 
+// Maximum number of objects allowed to prevent DoS attacks
+const MAX_CANVAS_OBJECTS = 1000;
+
+// Validate CSS color value to prevent injection
+function isValidCSSColor(color: unknown): color is string {
+  if (typeof color !== 'string') return false;
+  // Allow hex colors, rgb/rgba, hsl/hsla, and named colors
+  const hexPattern = /^#([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6}|[A-Fa-f0-9]{8})$/;
+  const rgbPattern = /^rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*(0|1|0?\.\d+))?\s*\)$/;
+  const hslPattern = /^hsla?\(\s*\d{1,3}\s*,\s*\d{1,3}%\s*,\s*\d{1,3}%\s*(,\s*(0|1|0?\.\d+))?\s*\)$/;
+  const namedColorPattern = /^[a-zA-Z]+$/;
+  
+  return hexPattern.test(color) || rgbPattern.test(color) || hslPattern.test(color) || namedColorPattern.test(color);
+}
+
+// Validate URL to prevent XSS attacks
+function isValidImageUrl(url: unknown): boolean {
+  if (typeof url !== 'string') return false;
+  
+  // Block dangerous protocols
+  const dangerousProtocols = ['javascript:', 'data:text/html', 'vbscript:', 'file:'];
+  const lowerUrl = url.toLowerCase().trim();
+  
+  for (const protocol of dangerousProtocols) {
+    if (lowerUrl.startsWith(protocol)) {
+      return false;
+    }
+  }
+  
+  // Block embedded scripts in data URLs
+  if (lowerUrl.startsWith('data:') && (lowerUrl.includes('<script') || lowerUrl.includes('javascript:'))) {
+    return false;
+  }
+  
+  // Allow data URLs for images (common for canvas exports)
+  if (lowerUrl.startsWith('data:image/')) {
+    return true;
+  }
+  
+  // Allow http/https URLs
+  if (lowerUrl.startsWith('http://') || lowerUrl.startsWith('https://')) {
+    return true;
+  }
+  
+  // Allow blob URLs (used for local file uploads)
+  if (lowerUrl.startsWith('blob:')) {
+    return true;
+  }
+  
+  return false;
+}
+
+// Sanitize canvas data before loading to prevent XSS and DoS attacks
+function sanitizeCanvasData(data: unknown): Record<string, unknown> {
+  if (!data || typeof data !== 'object') {
+    return {};
+  }
+  
+  const sanitized = { ...data } as Record<string, unknown>;
+  
+  // Check object count limit
+  if (Array.isArray(sanitized.objects)) {
+    if (sanitized.objects.length > MAX_CANVAS_OBJECTS) {
+      console.warn(`Canvas has ${sanitized.objects.length} objects, limiting to ${MAX_CANVAS_OBJECTS}`);
+      sanitized.objects = sanitized.objects.slice(0, MAX_CANVAS_OBJECTS);
+    }
+    
+    // Sanitize each object
+    sanitized.objects = (sanitized.objects as Record<string, unknown>[]).map((obj) => {
+      if (!obj || typeof obj !== 'object') return obj;
+      
+      const sanitizedObj = { ...obj };
+      
+      // Validate and sanitize image sources
+      if ('src' in sanitizedObj) {
+        if (!isValidImageUrl(sanitizedObj.src)) {
+          console.warn('Removed potentially dangerous image URL');
+          delete sanitizedObj.src;
+        }
+      }
+      
+      // Validate fill colors
+      if ('fill' in sanitizedObj && sanitizedObj.fill !== null && sanitizedObj.fill !== undefined) {
+        if (typeof sanitizedObj.fill === 'string' && !isValidCSSColor(sanitizedObj.fill)) {
+          sanitizedObj.fill = '#000000';
+        }
+      }
+      
+      // Validate stroke colors
+      if ('stroke' in sanitizedObj && sanitizedObj.stroke !== null && sanitizedObj.stroke !== undefined) {
+        if (typeof sanitizedObj.stroke === 'string' && !isValidCSSColor(sanitizedObj.stroke)) {
+          sanitizedObj.stroke = '#000000';
+        }
+      }
+      
+      // Sanitize text content - remove potential script tags
+      if ('text' in sanitizedObj && typeof sanitizedObj.text === 'string') {
+        sanitizedObj.text = sanitizedObj.text
+          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+          .replace(/javascript:/gi, '');
+      }
+      
+      return sanitizedObj;
+    });
+  }
+  
+  // Validate background color
+  if ('background' in sanitized && !isValidCSSColor(sanitized.background)) {
+    sanitized.background = '#FAFAF8';
+  }
+  
+  return sanitized;
+}
+
 export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialCategory = "personal", externalTitle, onTitleChange, externalCategory, onCategoryChange }: VisionCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -305,10 +419,12 @@ export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialC
         if (data.board.board_data && typeof data.board.board_data === 'object') {
           console.log("Loading canvas JSON:", data.board.board_data);
           try {
-            await canvas.loadFromJSON(data.board.board_data);
-            // Restore background color if saved
-            if (data.board.board_data.background) {
-              canvas.backgroundColor = data.board.board_data.background;
+            // Sanitize canvas data before loading to prevent XSS and DoS attacks
+            const sanitizedData = sanitizeCanvasData(data.board.board_data);
+            await canvas.loadFromJSON(sanitizedData);
+            // Restore background color if saved (only allow valid CSS color values)
+            if (sanitizedData.background && isValidCSSColor(sanitizedData.background)) {
+              canvas.backgroundColor = sanitizedData.background;
             }
             canvas.renderAll();
             toast.success("Board loaded!");

@@ -8,7 +8,6 @@ interface User {
 }
 
 interface Session {
-  token: string;
   expires_at: string;
 }
 
@@ -23,39 +22,39 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const SESSION_KEY = "visionboard_session";
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Validate session on mount
+  // Validate session on mount using httpOnly cookies
   useEffect(() => {
     const validateSession = async () => {
-      const storedSession = localStorage.getItem(SESSION_KEY);
-      if (!storedSession) {
-        setIsLoading(false);
-        return;
-      }
-
       try {
-        const { token } = JSON.parse(storedSession);
-        const { data, error } = await supabase.functions.invoke("auth-session", {
-          body: { token },
-        });
+        // The cookie will be automatically sent with the request via credentials: 'include'
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-session`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            },
+            credentials: 'include', // Include cookies in the request
+          }
+        );
 
-        if (error || !data?.valid) {
-          localStorage.removeItem(SESSION_KEY);
+        const data = await response.json();
+
+        if (!data?.valid) {
           setIsLoading(false);
           return;
         }
 
         setUser(data.user);
-        setSession({ token, expires_at: data.session.expires_at });
+        setSession({ expires_at: data.session.expires_at });
       } catch (err) {
         console.error("Session validation error:", err);
-        localStorage.removeItem(SESSION_KEY);
       } finally {
         setIsLoading(false);
       }
@@ -66,23 +65,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signup = useCallback(async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke("auth-signup", {
-        body: { email, password },
-      });
-
-      if (error) {
-        return { error: "Failed to create account. Please try again." };
-      }
-
-      if (data?.error) {
-        return { error: data.error };
-      }
-
-      // Store session
-      localStorage.setItem(
-        SESSION_KEY,
-        JSON.stringify({ token: data.session.token })
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-signup`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          credentials: 'include', // Include cookies in the request
+          body: JSON.stringify({ email, password }),
+        }
       );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { error: data.error || "Failed to create account. Please try again." };
+      }
+
       setUser(data.user);
       setSession(data.session);
 
@@ -95,23 +96,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke("auth-login", {
-        body: { email, password },
-      });
-
-      if (error) {
-        return { error: "Failed to log in. Please try again." };
-      }
-
-      if (data?.error) {
-        return { error: data.error };
-      }
-
-      // Store session
-      localStorage.setItem(
-        SESSION_KEY,
-        JSON.stringify({ token: data.session.token })
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-login`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          credentials: 'include', // Include cookies in the request
+          body: JSON.stringify({ email, password }),
+        }
       );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { error: data.error || "Failed to log in. Please try again." };
+      }
+
       setUser(data.user);
       setSession(data.session);
 
@@ -123,20 +126,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    if (session?.token) {
-      try {
-        await supabase.functions.invoke("auth-logout", {
-          body: { token: session.token },
-        });
-      } catch (err) {
-        console.error("Logout error:", err);
-      }
+    try {
+      await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auth-logout`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          credentials: 'include', // Include cookies in the request
+        }
+      );
+    } catch (err) {
+      console.error("Logout error:", err);
     }
 
-    localStorage.removeItem(SESSION_KEY);
     setUser(null);
     setSession(null);
-  }, [session]);
+  }, []);
 
   return (
     <AuthContext.Provider
