@@ -5,7 +5,14 @@ import { SEO } from "@/components/seo/SEO";
 import { VisionCanvas } from "@/components/canvas/VisionCanvas";
 import { getTemplateById } from "@/services/templatesService";
 import { VisionBoardTemplate } from "@/types/templates";
-import { Briefcase, GraduationCap, Heart, Wallet, Star, Info, Loader2 } from "lucide-react";
+import { Briefcase, GraduationCap, Heart, Wallet, Star, Info, Loader2, ChevronDown } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 
 const categories = [
   { id: "career", label: "Career", icon: Briefcase, color: "bg-category-career" },
@@ -64,6 +71,7 @@ export default function CreateBoard() {
   const [dbTemplate, setDbTemplate] = useState<VisionBoardTemplate | null>(null);
   const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
   const [boardTitle, setBoardTitle] = useState("Untitled Board");
+  const [selectedCategory, setSelectedCategory] = useState<string>("personal");
   
   // Fetch DB template if templateId is provided
   useEffect(() => {
@@ -104,9 +112,20 @@ export default function CreateBoard() {
   const activeTemplate = dbTemplate || legacyTemplate;
   const templateCategory = dbTemplate?.category || legacyTemplate?.category || "personal";
 
+  // Set initial category from template
+  useEffect(() => {
+    setSelectedCategory(templateCategory);
+  }, [templateCategory]);
+
   const handleTitleChange = (newTitle: string) => {
     setBoardTitle(newTitle);
   };
+
+  const handleCategoryChange = (category: string) => {
+    setSelectedCategory(category);
+  };
+
+  const currentCategory = categories.find(c => c.id === selectedCategory) || categories[4];
 
   return (
     <Layout hideFooter useEditorHeader boardTitle={boardTitle} onTitleChange={handleTitleChange}>
@@ -119,23 +138,35 @@ export default function CreateBoard() {
       <div className="h-[calc(100vh-4rem)] flex flex-col">
         {/* Category Bar */}
         <div className="flex items-center justify-between gap-4 px-4 py-3 bg-surface border-b border-border">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
               Category:
             </span>
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
-                  templateCategory === cat.id 
-                    ? "bg-primary text-primary-foreground" 
-                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                }`}
-              >
-                <div className={`w-3 h-3 rounded-full ${cat.color}`} />
-                {cat.label}
-              </button>
-            ))}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <div className={`w-3 h-3 rounded-full ${currentCategory.color}`} />
+                  {currentCategory.label}
+                  <ChevronDown className="h-4 w-4 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-48 bg-popover">
+                {categories.map((cat) => {
+                  const Icon = cat.icon;
+                  return (
+                    <DropdownMenuItem
+                      key={cat.id}
+                      onClick={() => handleCategoryChange(cat.id)}
+                      className={`gap-2 cursor-pointer ${selectedCategory === cat.id ? "bg-accent" : ""}`}
+                    >
+                      <div className={`w-3 h-3 rounded-full ${cat.color}`} />
+                      <Icon className="h-4 w-4" />
+                      {cat.label}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
@@ -161,6 +192,8 @@ export default function CreateBoard() {
               initialCategory={templateCategory}
               externalTitle={boardTitle}
               onTitleChange={handleTitleChange}
+              externalCategory={selectedCategory}
+              onCategoryChange={handleCategoryChange}
             />
           )}
         </div>

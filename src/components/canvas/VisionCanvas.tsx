@@ -42,6 +42,8 @@ interface VisionCanvasProps {
   initialCategory?: string;
   externalTitle?: string;
   onTitleChange?: (title: string) => void;
+  externalCategory?: string;
+  onCategoryChange?: (category: string) => void;
 }
 
 const CANVAS_WIDTH = 1200;
@@ -59,7 +61,7 @@ const PRESET_COLORS = [
   "#FFFFFF", // White
 ];
 
-export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialCategory = "personal", externalTitle, onTitleChange }: VisionCanvasProps) {
+export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialCategory = "personal", externalTitle, onTitleChange, externalCategory, onCategoryChange }: VisionCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [canvas, setCanvas] = useState<FabricCanvas | null>(null);
@@ -1239,7 +1241,7 @@ export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialC
       // Include backgroundColor in the saved data
       const canvasData = canvas.toJSON();
       canvasData.background = canvas.backgroundColor;
-      const category = template?.category || initialCategory;
+      const category = externalCategory || template?.category || initialCategory;
 
       if (currentBoardId) {
         // Update existing board
