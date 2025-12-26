@@ -70,9 +70,13 @@ export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialC
   const [isSaving, setIsSaving] = useState(false);
   const [currentBoardId, setCurrentBoardId] = useState<string | null>(boardId || null);
   const [internalTitle, setInternalTitle] = useState("Untitled Board");
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const templateLoadedRef = useRef<number | string | null>(null);
   const boardLoadedRef = useRef<string | null>(null);
+  const autoSaveIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoadRef = useRef(true);
   
   // Use external title if provided, otherwise use internal
   const boardTitle = externalTitle ?? internalTitle;
@@ -99,8 +103,25 @@ export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialC
     fabricCanvas.on("selection:created", () => setHasSelection(true));
     fabricCanvas.on("selection:updated", () => setHasSelection(true));
     fabricCanvas.on("selection:cleared", () => setHasSelection(false));
+    
+    // Track canvas modifications for auto-save
+    const markDirty = () => {
+      if (!isInitialLoadRef.current) {
+        setHasUnsavedChanges(true);
+      }
+    };
+    
+    fabricCanvas.on("object:added", markDirty);
+    fabricCanvas.on("object:removed", markDirty);
+    fabricCanvas.on("object:modified", markDirty);
+    fabricCanvas.on("text:changed", markDirty);
 
     setCanvas(fabricCanvas);
+    
+    // Mark initial load complete after a short delay
+    setTimeout(() => {
+      isInitialLoadRef.current = false;
+    }, 2000);
 
     return () => {
       fabricCanvas.dispose();
@@ -1201,13 +1222,15 @@ export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialC
     onExport?.(dataUrl);
   }, [canvas, onExport]);
 
-  const saveBoard = useCallback(async () => {
+  const saveBoard = useCallback(async (isAutoSave = false) => {
     if (!canvas) return;
 
-    // If user is not logged in, redirect to auth
+    // If user is not logged in, redirect to auth (only for manual saves)
     if (!user || !session?.token) {
-      toast.error("Please log in to save your board");
-      navigate("/auth");
+      if (!isAutoSave) {
+        toast.error("Please log in to save your board");
+        navigate("/auth");
+      }
       return;
     }
 
@@ -1232,7 +1255,11 @@ export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialC
         });
 
         if (error) throw error;
-        toast.success("Board saved!");
+        setHasUnsavedChanges(false);
+        setLastSavedAt(new Date());
+        if (!isAutoSave) {
+          toast.success("Board saved!");
+        }
       } else {
         // Create new board
         const { data, error } = await supabase.functions.invoke("vision-boards", {
@@ -1247,15 +1274,38 @@ export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialC
 
         if (error) throw error;
         setCurrentBoardId(data.board.id);
-        toast.success("Board saved!");
+        setHasUnsavedChanges(false);
+        setLastSavedAt(new Date());
+        if (!isAutoSave) {
+          toast.success("Board saved!");
+        }
       }
     } catch (err) {
       console.error("Failed to save board:", err);
-      toast.error("Failed to save board");
+      if (!isAutoSave) {
+        toast.error("Failed to save board");
+      }
     } finally {
       setIsSaving(false);
     }
   }, [canvas, user, session, currentBoardId, boardTitle, template, initialCategory, navigate]);
+
+  // Auto-save every 30 seconds when there are unsaved changes
+  useEffect(() => {
+    if (!user || !session?.token) return;
+    
+    autoSaveIntervalRef.current = setInterval(() => {
+      if (hasUnsavedChanges && !isSaving) {
+        saveBoard(true);
+      }
+    }, 30000); // 30 seconds
+
+    return () => {
+      if (autoSaveIntervalRef.current) {
+        clearInterval(autoSaveIntervalRef.current);
+      }
+    };
+  }, [hasUnsavedChanges, isSaving, saveBoard, user, session]);
 
   return (
     <div className="flex flex-col h-full bg-canvas rounded-xl overflow-hidden border border-border">
@@ -1380,16 +1430,18 @@ export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialC
           <Button 
             variant="canvas" 
             size="sm" 
-            onClick={saveBoard}
+            onClick={() => saveBoard(false)}
             disabled={isSaving}
-            title={user ? "Save to your account" : "Log in to save"}
+            title={user ? (hasUnsavedChanges ? "Save changes" : "All changes saved") : "Log in to save"}
           >
             {isSaving ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Save className="h-4 w-4" />
             )}
-            <span className="hidden sm:inline">{isSaving ? "Saving..." : "Save"}</span>
+            <span className="hidden sm:inline">
+              {isSaving ? "Saving..." : hasUnsavedChanges ? "Save" : "Saved"}
+            </span>
           </Button>
 
           <Button variant="hero" size="sm" onClick={exportCanvas}>
