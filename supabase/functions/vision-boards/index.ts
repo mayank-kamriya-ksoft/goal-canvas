@@ -170,6 +170,48 @@ serve(async (req) => {
         );
       }
 
+      case 'duplicate': {
+        const { boardId } = data;
+        console.log('Duplicating board:', boardId);
+
+        // First, get the original board
+        const { data: originalBoard, error: fetchError } = await supabase
+          .from('vision_boards')
+          .select('*')
+          .eq('id', boardId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (fetchError) throw fetchError;
+        if (!originalBoard) {
+          return new Response(
+            JSON.stringify({ error: 'Board not found' }),
+            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Create a duplicate with a new title
+        const { data: newBoard, error: insertError } = await supabase
+          .from('vision_boards')
+          .insert({
+            user_id: userId,
+            title: `${originalBoard.title} (Copy)`,
+            board_data: originalBoard.board_data,
+            category: originalBoard.category,
+          })
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+
+        console.log('Board duplicated successfully:', newBoard.id);
+
+        return new Response(
+          JSON.stringify({ board: newBoard }),
+          { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       default:
         return new Response(
           JSON.stringify({ error: 'Invalid action' }),

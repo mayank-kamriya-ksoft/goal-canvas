@@ -15,7 +15,8 @@ import {
   Trash2,
   Edit3,
   Loader2,
-  FolderOpen
+  FolderOpen,
+  Copy
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -49,6 +50,7 @@ export default function MyBoards() {
   const [boards, setBoards] = useState<VisionBoard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   useEffect(() => {
@@ -118,6 +120,44 @@ export default function MyBoards() {
       toast.error("Failed to delete board");
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleDuplicate = async (boardId: string) => {
+    if (!session?.token) return;
+
+    setDuplicatingId(boardId);
+    try {
+      const { data, error } = await supabase.functions.invoke("vision-boards", {
+        body: { action: "duplicate", token: session.token, boardId },
+      });
+
+      if (error) {
+        const status = (error as any)?.context?.status;
+        if (status === 401) {
+          toast.error("Your session expired. Please log in again.");
+          await logout();
+          navigate("/auth");
+          return;
+        }
+        throw error;
+      }
+
+      // Add the new board to the list
+      const newBoard = data.board;
+      setBoards([{
+        id: newBoard.id,
+        title: newBoard.title,
+        category: newBoard.category,
+        created_at: newBoard.created_at,
+        updated_at: newBoard.updated_at,
+      }, ...boards]);
+      toast.success("Board duplicated");
+    } catch (err) {
+      console.error("Failed to duplicate board:", err);
+      toast.error("Failed to duplicate board");
+    } finally {
+      setDuplicatingId(null);
     }
   };
 
@@ -227,13 +267,26 @@ export default function MyBoards() {
                         </div>
                       </div>
                       {/* Hover overlay */}
-                      <div className="absolute inset-0 bg-foreground/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                      <div className="absolute inset-0 bg-foreground/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 flex-wrap p-2">
                         <Link to={`/create?board=${board.id}`}>
                           <Button variant="secondary" size="sm">
                             <Edit3 className="h-4 w-4" />
                             Edit
                           </Button>
                         </Link>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleDuplicate(board.id)}
+                          disabled={duplicatingId === board.id}
+                        >
+                          {duplicatingId === board.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Copy className="h-4 w-4" />
+                          )}
+                          Duplicate
+                        </Button>
                         <Button
                           variant="destructive"
                           size="sm"
