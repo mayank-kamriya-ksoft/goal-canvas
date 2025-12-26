@@ -19,9 +19,12 @@ import {
   Palette,
   User,
   LayoutGrid,
+  Sparkles,
+  LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Sidebar,
   SidebarContent,
@@ -32,6 +35,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarFooter,
+  SidebarHeader,
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
@@ -82,17 +86,34 @@ export function DashboardSidebar({
 }: DashboardSidebarProps) {
   const location = useLocation();
   const { state } = useSidebar();
+  const { user, logout } = useAuth();
   const isCollapsed = state === "collapsed";
 
   const isActive = (href: string) => location.pathname === href;
   const isOnMyBoards = location.pathname === "/my-boards";
   const isOnTemplates = location.pathname === "/templates";
 
+  const handleLogout = async () => {
+    await logout();
+  };
+
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border top-16 h-[calc(100vh-4rem)]">
-      <div className="flex items-center justify-end p-2 border-b border-sidebar-border">
-        <SidebarTrigger />
-      </div>
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border h-screen">
+      {/* Logo Header */}
+      <SidebarHeader className="border-b border-sidebar-border p-4">
+        <div className="flex items-center justify-between">
+          <Link
+            to="/"
+            className="flex items-center gap-2 text-lg font-display font-semibold text-foreground transition-colors hover:text-primary"
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground flex-shrink-0">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            {!isCollapsed && <span>VisionBoard</span>}
+          </Link>
+          <SidebarTrigger className="ml-auto" />
+        </div>
+      </SidebarHeader>
 
       <SidebarContent>
         {/* Quick Actions */}
@@ -266,11 +287,36 @@ export function DashboardSidebar({
         )}
       </SidebarContent>
 
+      {/* User Footer */}
       <SidebarFooter className="border-t border-sidebar-border p-4">
-        {!isCollapsed && (
-          <p className="text-xs text-muted-foreground text-center">
-            Vision Board Creator
-          </p>
+        {user ? (
+          <div className={cn("flex items-center", isCollapsed ? "justify-center" : "gap-3")}>
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary flex-shrink-0">
+              <User className="h-4 w-4" />
+            </div>
+            {!isCollapsed && (
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">
+                  {user.email}
+                </p>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <LogOut className="h-3 w-3" />
+                  Sign Out
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          !isCollapsed && (
+            <Link to="/auth">
+              <Button variant="outline" size="sm" className="w-full">
+                Sign In
+              </Button>
+            </Link>
+          )
         )}
       </SidebarFooter>
     </Sidebar>

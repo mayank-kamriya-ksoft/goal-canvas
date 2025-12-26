@@ -26,6 +26,7 @@ export function DashboardLayout({
   const isMobile = useIsMobile();
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
+  // Mobile layout - keep header for navigation
   if (isMobile) {
     return (
       <div className="min-h-screen flex flex-col">
@@ -44,23 +45,21 @@ export function DashboardLayout({
     );
   }
 
+  // Desktop layout - no header, full sidebar with logo
   return (
-    <div className="min-h-screen flex flex-col">
-      <Header />
-      <SidebarProvider defaultOpen={true}>
-        <div className="flex flex-1 w-full overflow-hidden">
-          <DashboardSidebar
-            selectedCategory={selectedCategory}
-            onCategoryChange={onCategoryChange}
-            selectedTemplateCategory={selectedTemplateCategory}
-            onTemplateCategoryChange={onTemplateCategoryChange}
-          />
-          <SidebarInset className="flex flex-col flex-1 min-w-0 overflow-auto">
-            <main className="flex-1 min-w-0">{children}</main>
-            {!hideFooter && <Footer />}
-          </SidebarInset>
-        </div>
-      </SidebarProvider>
-    </div>
+    <SidebarProvider defaultOpen={true}>
+      <div className="min-h-screen flex w-full">
+        <DashboardSidebar
+          selectedCategory={selectedCategory}
+          onCategoryChange={onCategoryChange}
+          selectedTemplateCategory={selectedTemplateCategory}
+          onTemplateCategoryChange={onTemplateCategoryChange}
+        />
+        <SidebarInset className="flex flex-col flex-1 min-w-0 overflow-auto">
+          <main className="flex-1 min-w-0">{children}</main>
+          {!hideFooter && <Footer />}
+        </SidebarInset>
+      </div>
+    </SidebarProvider>
   );
 }
