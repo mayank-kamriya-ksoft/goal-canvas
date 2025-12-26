@@ -40,6 +40,8 @@ interface VisionCanvasProps {
   dbTemplate?: VisionBoardTemplate | null;
   boardId?: string | null;
   initialCategory?: string;
+  externalTitle?: string;
+  onTitleChange?: (title: string) => void;
 }
 
 const CANVAS_WIDTH = 1200;
@@ -57,7 +59,7 @@ const PRESET_COLORS = [
   "#FFFFFF", // White
 ];
 
-export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialCategory = "personal" }: VisionCanvasProps) {
+export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialCategory = "personal", externalTitle, onTitleChange }: VisionCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [canvas, setCanvas] = useState<FabricCanvas | null>(null);
@@ -67,10 +69,17 @@ export function VisionCanvas({ onExport, template, dbTemplate, boardId, initialC
   const [showAllColors, setShowAllColors] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [currentBoardId, setCurrentBoardId] = useState<string | null>(boardId || null);
-  const [boardTitle, setBoardTitle] = useState("Untitled Board");
+  const [internalTitle, setInternalTitle] = useState("Untitled Board");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const templateLoadedRef = useRef<number | string | null>(null);
   const boardLoadedRef = useRef<string | null>(null);
+  
+  // Use external title if provided, otherwise use internal
+  const boardTitle = externalTitle ?? internalTitle;
+  const setBoardTitle = (title: string) => {
+    setInternalTitle(title);
+    onTitleChange?.(title);
+  };
   
   const { user, session } = useAuth();
   const navigate = useNavigate();

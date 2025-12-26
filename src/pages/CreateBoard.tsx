@@ -159,6 +159,8 @@ export default function CreateBoard() {
               dbTemplate={dbTemplate}
               boardId={boardId}
               initialCategory={templateCategory}
+              externalTitle={boardTitle}
+              onTitleChange={handleTitleChange}
             />
           )}
         </div>
