@@ -2,8 +2,16 @@ import { Link } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { SEO } from "@/components/seo/SEO";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Briefcase, GraduationCap, Heart, Wallet, Star, Eye, LayoutGrid, FolderOpen } from "lucide-react";
+import { 
+  ArrowRight, Briefcase, GraduationCap, Heart, Wallet, Star, Eye, LayoutGrid, FolderOpen,
+  Users, User, Building, Home, Leaf, Trophy, Plane, Palette
+} from "lucide-react";
 import { TEMPLATE_CATEGORIES } from "@/types/templates";
+
+// Icon mapping for categories
+const categoryIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+  Briefcase, Heart, Users, Wallet, User, Building, GraduationCap, Home, Leaf, Trophy, Plane, Palette
+};
 
 // Stats derived from template categories
 const TOTAL_CATEGORIES = TEMPLATE_CATEGORIES.length;
@@ -136,6 +144,40 @@ export default function Templates() {
                 <ArrowRight className="h-5 w-5" />
               </Button>
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Categories Section */}
+      <section className="section-padding bg-secondary/30">
+        <div className="container-wide">
+          <div className="text-center max-w-2xl mx-auto mb-10">
+            <h2 className="text-3xl sm:text-4xl font-display font-bold text-foreground mb-4">
+              Browse by Category
+            </h2>
+            <p className="text-muted-foreground">
+              Find the perfect template for every area of your life
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {TEMPLATE_CATEGORIES.map((category) => {
+              const IconComponent = categoryIcons[category.icon];
+              return (
+                <Link
+                  key={category.id}
+                  to={`/create?category=${category.id}`}
+                  className="group flex flex-col items-center gap-3 p-4 rounded-xl bg-background border border-border hover:border-primary/50 hover:shadow-lg transition-all duration-300"
+                >
+                  <div className={`w-12 h-12 ${category.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                    {IconComponent && <IconComponent className="h-6 w-6 text-white" />}
+                  </div>
+                  <span className="text-sm font-medium text-foreground text-center">
+                    {category.label}
+                  </span>
+                </Link>
+              );
+            })}
           </div>
         </div>
       </section>
