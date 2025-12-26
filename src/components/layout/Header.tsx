@@ -6,10 +6,9 @@ import { Menu, X, Sparkles, User, LogOut } from "lucide-react";
 
 const navigation = [
   { name: "Home", href: "/" },
-  { name: "Templates", href: "/templates" },
   { name: "Create Board", href: "/create" },
   { name: "My Boards", href: "/my-boards", requiresAuth: true },
-  { name: "Examples", href: "/examples" },
+  { name: "Templates", href: "/templates" },
   { name: "How It Works", href: "/how-to-create" },
 ];
 
