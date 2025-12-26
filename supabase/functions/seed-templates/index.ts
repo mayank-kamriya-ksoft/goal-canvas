@@ -822,12 +822,32 @@ serve(async (req) => {
   }
 
   try {
+    // Authentication: Require admin secret for this administrative endpoint
+    const authHeader = req.headers.get('authorization');
+    const adminSecret = Deno.env.get('ADMIN_SECRET_KEY');
+    
+    if (!adminSecret) {
+      console.error('ADMIN_SECRET_KEY not configured');
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    if (!authHeader || authHeader !== `Bearer ${adminSecret}`) {
+      console.warn('Unauthorized seed-templates attempt');
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Use external Supabase if configured
     const supabaseUrl = Deno.env.get('EXTERNAL_SUPABASE_URL') || Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('EXTERNAL_SUPABASE_SERVICE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log('Starting template seeding...');
+    console.log('Starting template seeding (authenticated)...');
 
     // First, delete existing templates
     const { error: deleteError } = await supabase
