@@ -97,7 +97,7 @@ export default function CreateBoard() {
   const templateCategory = dbTemplate?.category || legacyTemplate?.category || "personal";
 
   return (
-    <Layout hideFooter>
+    <Layout hideFooter useEditorHeader>
       <SEO
         title="Create Your Free Vision Board Online"
         description="Design your personalized digital vision board with our free drag-and-drop tool. Add images, goals, and inspirational text. Download as PNG, JPG, or PDF."
