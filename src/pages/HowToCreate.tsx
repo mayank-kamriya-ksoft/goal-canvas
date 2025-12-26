@@ -176,21 +176,23 @@ export default function HowToCreate() {
 
       {/* Introduction */}
       <section className="section-padding">
-        <div className="container-narrow prose-custom">
-          <h2>What You'll Learn</h2>
-          <p>
-            Creating an effective vision board is more than just collecting
-            pretty pictures. This guide will walk you through a proven process
-            for designing a vision board that serves as a powerful goal-planning
-            and motivation tool. Whether you're new to vision boards or looking
-            to improve your approach, you'll find actionable insights to create
-            a board that truly supports your aspirations.
-          </p>
-          <p>
-            A well-crafted vision board helps you clarify what you really want,
-            stay focused on priorities, and maintain motivation when challenges
-            arise. Let's explore how to create one that works for you.
-          </p>
+        <div className="container-wide">
+          <div className="max-w-4xl prose-custom">
+            <h2>What You'll Learn</h2>
+            <p>
+              Creating an effective vision board is more than just collecting
+              pretty pictures. This guide will walk you through a proven process
+              for designing a vision board that serves as a powerful goal-planning
+              and motivation tool. Whether you're new to vision boards or looking
+              to improve your approach, you'll find actionable insights to create
+              a board that truly supports your aspirations.
+            </p>
+            <p>
+              A well-crafted vision board helps you clarify what you really want,
+              stay focused on priorities, and maintain motivation when challenges
+              arise. Let's explore how to create one that works for you.
+            </p>
+          </div>
         </div>
       </section>
 
