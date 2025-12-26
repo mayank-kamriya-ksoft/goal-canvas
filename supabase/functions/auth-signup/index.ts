@@ -2,9 +2,13 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { encodeBase64 } from "https://deno.land/std@0.208.0/encoding/base64.ts";
 
+// Get the app origin for cookie domain
+const APP_ORIGIN = Deno.env.get('APP_ORIGIN') || '*';
+
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': APP_ORIGIN,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Credentials': 'true',
 };
 
 // Rate limiting configuration
@@ -165,6 +169,12 @@ function generateSessionToken(): string {
   return encodeBase64(bytes).replace(/[+/=]/g, '');
 }
 
+// Create secure cookie string
+function createSessionCookie(token: string, expiresAt: Date): string {
+  const maxAge = Math.floor((expiresAt.getTime() - Date.now()) / 1000);
+  return `session_token=${token}; HttpOnly; Secure; SameSite=Strict; Max-Age=${maxAge}; Path=/`;
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -285,6 +295,9 @@ serve(async (req) => {
 
     console.log('User created successfully');
 
+    // Set httpOnly cookie for session token
+    const sessionCookie = createSessionCookie(sessionToken, expiresAt);
+
     return new Response(
       JSON.stringify({
         user: {
@@ -293,11 +306,17 @@ serve(async (req) => {
           created_at: newUser.created_at,
         },
         session: {
-          token: sessionToken,
           expires_at: expiresAt.toISOString(),
         },
       }),
-      { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { 
+        status: 201, 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'Set-Cookie': sessionCookie,
+        } 
+      }
     );
 
   } catch (error) {

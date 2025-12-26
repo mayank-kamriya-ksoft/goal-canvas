@@ -1,9 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Get the app origin for cookie domain
+const APP_ORIGIN = Deno.env.get('APP_ORIGIN') || '*';
+
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': APP_ORIGIN,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Credentials': 'true',
 };
 
 // Rate limiting configuration
@@ -61,6 +65,21 @@ function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number
   return { allowed: true };
 }
 
+// Parse session token from cookies
+function getSessionTokenFromCookies(req: Request): string | null {
+  const cookieHeader = req.headers.get('cookie');
+  if (!cookieHeader) return null;
+  
+  const cookies = cookieHeader.split(';');
+  for (const cookie of cookies) {
+    const [name, value] = cookie.trim().split('=');
+    if (name === 'session_token') {
+      return value;
+    }
+  }
+  return null;
+}
+
 // Validate session and return user_id
 async function validateSession(supabase: any, token: string): Promise<string | null> {
   if (!token) return null;
@@ -92,9 +111,12 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const formData = await req.formData();
-    const token = formData.get('token') as string;
+    const bodyToken = formData.get('token') as string;
     const action = formData.get('action') as string;
     const file = formData.get('file') as File | null;
+
+    // Try to get token from cookies first, then fall back to body (for backward compatibility)
+    const token = getSessionTokenFromCookies(req) || bodyToken;
 
     // Validate session
     const userId = await validateSession(supabase, token);
@@ -150,37 +172,30 @@ serve(async (req) => {
           );
         }
 
-        // Generate file path
-        const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-        const fileName = `${userId}-${Date.now()}.${fileExt}`;
-        const filePath = `${userId}/${fileName}`;
+        // Generate unique filename with user folder structure
+        const ext = file.name.split('.').pop() || 'jpg';
+        const fileName = `${userId}/${Date.now()}.${ext}`;
 
-        // Delete existing avatar files for this user (cleanup old avatars)
-        try {
-          const { data: existingFiles } = await supabase.storage
-            .from('avatars')
-            .list(userId);
-          
-          if (existingFiles && existingFiles.length > 0) {
-            const filesToDelete = existingFiles.map(f => `${userId}/${f.name}`);
-            await supabase.storage.from('avatars').remove(filesToDelete);
-          }
-        } catch {
-          // Ignore cleanup errors
+        // Delete existing avatars for this user first
+        const { data: existingFiles } = await supabase.storage
+          .from('avatars')
+          .list(userId);
+
+        if (existingFiles && existingFiles.length > 0) {
+          const filesToDelete = existingFiles.map(f => `${userId}/${f.name}`);
+          await supabase.storage.from('avatars').remove(filesToDelete);
         }
 
-        // Upload file using service role
-        const arrayBuffer = await file.arrayBuffer();
-        const { error: uploadError } = await supabase.storage
+        // Upload new avatar
+        const { data: uploadData, error: uploadError } = await supabase.storage
           .from('avatars')
-          .upload(filePath, arrayBuffer, {
+          .upload(fileName, file, {
             contentType: file.type,
-            cacheControl: '3600',
             upsert: true,
           });
 
         if (uploadError) {
-          console.error('Upload error');
+          console.error('Upload error:', uploadError);
           return new Response(
             JSON.stringify({ error: 'Failed to upload file' }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -190,37 +205,40 @@ serve(async (req) => {
         // Get public URL
         const { data: urlData } = supabase.storage
           .from('avatars')
-          .getPublicUrl(filePath);
+          .getPublicUrl(fileName);
 
         console.log('Avatar uploaded successfully');
 
         return new Response(
-          JSON.stringify({ 
-            success: true, 
-            url: urlData.publicUrl,
-            path: filePath
-          }),
+          JSON.stringify({ url: urlData.publicUrl }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
       case 'delete': {
-        const filePath = formData.get('path') as string;
+        const path = formData.get('path') as string;
         
-        // Verify the path belongs to this user
-        if (!filePath || !filePath.startsWith(`${userId}/`)) {
+        if (!path) {
           return new Response(
-            JSON.stringify({ error: 'Invalid file path' }),
+            JSON.stringify({ error: 'File path is required' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Security: Ensure user can only delete their own files
+        if (!path.startsWith(`${userId}/`)) {
+          return new Response(
+            JSON.stringify({ error: 'Unauthorized - Cannot delete files from other users' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
         const { error: deleteError } = await supabase.storage
           .from('avatars')
-          .remove([filePath]);
+          .remove([path]);
 
         if (deleteError) {
-          console.error('Delete error');
+          console.error('Delete error:', deleteError);
           return new Response(
             JSON.stringify({ error: 'Failed to delete file' }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -241,9 +259,8 @@ serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
     }
-
   } catch (error) {
-    console.error('Avatar storage error');
+    console.error('Avatar storage error:', error);
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
